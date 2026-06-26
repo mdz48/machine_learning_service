@@ -1,11 +1,13 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import joblib
 import pandas as pd
 import numpy as np
+from sqlalchemy.orm import Session
+from database import engine, Base, get_db, InferenceRecord
 
-app = FastAPI(title="Preeclampsia Risk Prediction ML Service")
+app = FastAPI(title="ML Service")
 
 app.add_middleware(
     CORSMiddleware,
@@ -14,6 +16,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Create tables
+Base.metadata.create_all(bind=engine)
 
 # Load models at startup
 try:
@@ -58,7 +63,7 @@ def health_check():
     return {"status": "ok", "message": "ML Service is running"}
 
 @app.post("/predict")
-def predict_risk(data: PatientMedicalData):
+def predict_risk(data: PatientMedicalData, db: Session = Depends(get_db)):
     try:
         # Convert to DataFrame
         df = pd.DataFrame([data.model_dump()])
@@ -77,17 +82,34 @@ def predict_risk(data: PatientMedicalData):
         
         # Interpret cluster based on Data Mining Profiling
         diagnosis_map = {
-            0: "Jóvenes Primigestas Sanas (Riesgo Bajo)",
+            0: "Primigestas Sanas (Riesgo Bajo-Medio)",
             1: "Alto Riesgo Hipertensivo / Preeclampsia (Riesgo Crítico)",
-            2: "Jóvenes Multíparas Sanas (Riesgo Bajo-Medio)",
+            2: "Multíparas Sanas (Riesgo Bajo)",
             3: "Riesgo Metabólico / Obesidad (Riesgo Alto)"
         }
         
         diagnosis_text = diagnosis_map.get(cluster, f"Cluster {cluster}")
         
-        return {
+        result = {
             "risk_cluster": int(cluster),
             "diagnosis": diagnosis_text
         }
+        
+        # Save inference to database
+        db_record = InferenceRecord(
+            input_data=data.model_dump(),
+            prediction_result=result
+        )
+        db.add(db_record)
+        db.commit()
+        db.refresh(db_record)
+        
+        return result
     except Exception as e:
+        db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/history")
+def get_history(db: Session = Depends(get_db)):
+    inferences = db.query(InferenceRecord).order_by(InferenceRecord.timestamp.desc()).all()
+    return inferences
