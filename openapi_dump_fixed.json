@@ -1,0 +1,270 @@
+﻿{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ML Service",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/": {
+      "get": {
+        "summary": "Health Check",
+        "operationId": "health_check__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/predict": {
+      "post": {
+        "summary": "Predict Risk",
+        "operationId": "predict_risk_predict_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatientMedicalData"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/history": {
+      "get": {
+        "summary": "Get History",
+        "operationId": "get_history_history_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "PatientMedicalData": {
+        "properties": {
+          "age_years": {
+            "type": "integer",
+            "title": "Age Years"
+          },
+          "bmi_initial": {
+            "type": "number",
+            "title": "Bmi Initial"
+          },
+          "gestational_week": {
+            "type": "integer",
+            "title": "Gestational Week"
+          },
+          "gestational_trimester": {
+            "type": "integer",
+            "title": "Gestational Trimester"
+          },
+          "height_cm": {
+            "type": "number",
+            "title": "Height Cm"
+          },
+          "initial_weight": {
+            "type": "number",
+            "title": "Initial Weight"
+          },
+          "weight_kg": {
+            "type": "number",
+            "title": "Weight Kg"
+          },
+          "weight_gain": {
+            "type": "number",
+            "title": "Weight Gain"
+          },
+          "systolic": {
+            "type": "number",
+            "title": "Systolic"
+          },
+          "diastolic": {
+            "type": "number",
+            "title": "Diastolic"
+          },
+          "mean_arterial_pressure": {
+            "type": "number",
+            "title": "Mean Arterial Pressure"
+          },
+          "diabetes": {
+            "type": "integer",
+            "title": "Diabetes"
+          },
+          "chronic_hypertension": {
+            "type": "integer",
+            "title": "Chronic Hypertension"
+          },
+          "previous_preeclampsia": {
+            "type": "integer",
+            "title": "Previous Preeclampsia"
+          },
+          "family_history_hypertension": {
+            "type": "integer",
+            "title": "Family History Hypertension"
+          },
+          "family_history_heart_disease": {
+            "type": "integer",
+            "title": "Family History Heart Disease"
+          },
+          "chronic_kidney_disease": {
+            "type": "integer",
+            "title": "Chronic Kidney Disease"
+          },
+          "multiple_pregnancy": {
+            "type": "integer",
+            "title": "Multiple Pregnancy"
+          },
+          "active_smoking": {
+            "type": "integer",
+            "title": "Active Smoking"
+          },
+          "previous_pregnancies": {
+            "type": "integer",
+            "title": "Previous Pregnancies"
+          },
+          "previous_deliveries": {
+            "type": "integer",
+            "title": "Previous Deliveries"
+          },
+          "previous_miscarriages": {
+            "type": "integer",
+            "title": "Previous Miscarriages"
+          },
+          "previous_cesareans": {
+            "type": "integer",
+            "title": "Previous Cesareans"
+          },
+          "nulliparous": {
+            "type": "integer",
+            "title": "Nulliparous"
+          },
+          "education_level": {
+            "type": "string",
+            "title": "Education Level"
+          },
+          "residence": {
+            "type": "string",
+            "title": "Residence"
+          },
+          "marital_status": {
+            "type": "string",
+            "title": "Marital Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "age_years",
+          "bmi_initial",
+          "gestational_week",
+          "gestational_trimester",
+          "height_cm",
+          "initial_weight",
+          "weight_kg",
+          "weight_gain",
+          "systolic",
+          "diastolic",
+          "mean_arterial_pressure",
+          "diabetes",
+          "chronic_hypertension",
+          "previous_preeclampsia",
+          "family_history_hypertension",
+          "family_history_heart_disease",
+          "chronic_kidney_disease",
+          "multiple_pregnancy",
+          "active_smoking",
+          "previous_pregnancies",
+          "previous_deliveries",
+          "previous_miscarriages",
+          "previous_cesareans",
+          "nulliparous",
+          "education_level",
+          "residence",
+          "marital_status"
+        ],
+        "title": "PatientMedicalData"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

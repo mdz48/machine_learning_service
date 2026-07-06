@@ -1,0 +1,55 @@
+{
+  "model_version": "v2.0.0",
+  "training_date": "2026-07-05",
+  "algorithm": "PCA + K-Means (descubrimiento) + KNN (inferencia)",
+  "hyperparameters": {
+    "pca_components": 5,
+    "pca_variance_pct": 53.62,
+    "kmeans_k": 4,
+    "knn_n_neighbors": 15,
+    "knn_weights": "uniform",
+    "knn_metric": "euclidean"
+  },
+  "metrics": {
+    "silhouette": 0.2582,
+    "ari_vs_ground_truth": 0.3764,
+    "knn_fidelity": 0.9735
+  },
+  "pipeline_steps": [
+    "SimpleImputer(median)/most_frequent",
+    "StandardScaler",
+    "OneHotEncoder(drop=first)",
+    "PCA(5)",
+    "KNN"
+  ],
+  "cluster_map": {
+    "0": "Primigestas Sanas",
+    "1": "Alto Riesgo Hipertensivo",
+    "2": "Multiparas Sanas",
+    "3": "Riesgo Metabolico"
+  },
+  "centroids": {
+    "0": {
+      "bmi_initial": 21.61,
+      "systolic": 110.21,
+      "diastolic": 67.76
+    },
+    "1": {
+      "bmi_initial": 26.43,
+      "systolic": 147.86,
+      "diastolic": 94.11
+    },
+    "2": {
+      "bmi_initial": 22.2,
+      "systolic": 112.2,
+      "diastolic": 67.96
+    },
+    "3": {
+      "bmi_initial": 31.78,
+      "systolic": 128.06,
+      "diastolic": 82.09
+    }
+  },
+  "n_features": 27,
+  "author": "Maximiliano Diaz"
+}
