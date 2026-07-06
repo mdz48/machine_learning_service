@@ -113,6 +113,11 @@ def top_factors(patient: dict, cluster: int, k: int = 5):
     return factors[:k]
 
 
+def _clean_num(value):
+    """NaN -> None (el dataset tiene faltantes inyectados; NaN no es JSON valido)."""
+    return None if pd.isna(value) else round(float(value), 1)
+
+
 def similar_patients(knn, X_pca, n: int = 3):
     """Pacientes historicas mas parecidas (vecinas del KNN, en su espacio PCA)."""
     n = min(n, knn.n_neighbors)
@@ -121,7 +126,7 @@ def similar_patients(knn, X_pca, n: int = 3):
     for i in idx[0]:
         row = _REF.iloc[int(i)]
         out.append({
-            c: (round(float(row[c]), 1) if c != "perfil" else str(row[c]))
+            c: (str(row[c]) if c == "perfil" else _clean_num(row[c]))
             for c in _SIMILAR_COLS
         })
     return out
