@@ -1,0 +1,526 @@
+{
+  "cluster_map": {
+    "0": "Primigestas Sanas",
+    "1": "Alto Riesgo Hipertensivo",
+    "2": "Multiparas Sanas",
+    "3": "Riesgo Metabolico"
+  },
+  "numeric_features": [
+    "age_years",
+    "bmi_initial",
+    "gestational_week",
+    "gestational_trimester",
+    "height_cm",
+    "initial_weight",
+    "weight_kg",
+    "weight_gain",
+    "systolic",
+    "diastolic",
+    "mean_arterial_pressure",
+    "diabetes",
+    "chronic_hypertension",
+    "previous_preeclampsia",
+    "family_history_hypertension",
+    "family_history_heart_disease",
+    "chronic_kidney_disease",
+    "multiple_pregnancy",
+    "active_smoking",
+    "previous_pregnancies",
+    "previous_deliveries",
+    "previous_miscarriages",
+    "previous_cesareans",
+    "nulliparous"
+  ],
+  "global": {
+    "age_years": {
+      "mean": 29.1225,
+      "std": 5.9106
+    },
+    "bmi_initial": {
+      "mean": 24.8834,
+      "std": 5.238
+    },
+    "gestational_week": {
+      "mean": 31.4139,
+      "std": 4.963
+    },
+    "gestational_trimester": {
+      "mean": 2.829,
+      "std": 0.3766
+    },
+    "height_cm": {
+      "mean": 174.8075,
+      "std": 149.7619
+    },
+    "initial_weight": {
+      "mean": 63.6706,
+      "std": 14.1224
+    },
+    "weight_kg": {
+      "mean": 71.3114,
+      "std": 15.5156
+    },
+    "weight_gain": {
+      "mean": 7.6454,
+      "std": 3.451
+    },
+    "systolic": {
+      "mean": 120.9719,
+      "std": 20.4764
+    },
+    "diastolic": {
+      "mean": 75.6584,
+      "std": 12.1947
+    },
+    "mean_arterial_pressure": {
+      "mean": 90.5125,
+      "std": 12.8988
+    },
+    "diabetes": {
+      "mean": 0.1145,
+      "std": 0.3185
+    },
+    "chronic_hypertension": {
+      "mean": 0.107,
+      "std": 0.3092
+    },
+    "previous_preeclampsia": {
+      "mean": 0.047,
+      "std": 0.2117
+    },
+    "family_history_hypertension": {
+      "mean": 0.1595,
+      "std": 0.3662
+    },
+    "family_history_heart_disease": {
+      "mean": 0.1055,
+      "std": 0.3073
+    },
+    "chronic_kidney_disease": {
+      "mean": 0.026,
+      "std": 0.1592
+    },
+    "multiple_pregnancy": {
+      "mean": 0.0645,
+      "std": 0.2457
+    },
+    "active_smoking": {
+      "mean": 0.09,
+      "std": 0.2863
+    },
+    "previous_pregnancies": {
+      "mean": 1.9887,
+      "std": 1.8512
+    },
+    "previous_deliveries": {
+      "mean": 0.99,
+      "std": 1.3254
+    },
+    "previous_miscarriages": {
+      "mean": 1.0085,
+      "std": 1.3617
+    },
+    "previous_cesareans": {
+      "mean": 0.4985,
+      "std": 0.9167
+    },
+    "nulliparous": {
+      "mean": 0.3495,
+      "std": 0.4769
+    }
+  },
+  "clusters": {
+    "0": {
+      "age_years": {
+        "mean": 26.5428,
+        "std": 4.6136
+      },
+      "bmi_initial": {
+        "mean": 21.6119,
+        "std": 3.5493
+      },
+      "gestational_week": {
+        "mean": 32.2348,
+        "std": 4.207
+      },
+      "gestational_trimester": {
+        "mean": 2.9016,
+        "std": 0.2981
+      },
+      "height_cm": {
+        "mean": 175.6364,
+        "std": 157.0053
+      },
+      "initial_weight": {
+        "mean": 54.7427,
+        "std": 9.2211
+      },
+      "weight_kg": {
+        "mean": 61.7665,
+        "std": 10.2855
+      },
+      "weight_gain": {
+        "mean": 7.0038,
+        "std": 2.8933
+      },
+      "systolic": {
+        "mean": 110.2124,
+        "std": 12.1248
+      },
+      "diastolic": {
+        "mean": 67.7646,
+        "std": 5.3675
+      },
+      "mean_arterial_pressure": {
+        "mean": 81.6761,
+        "std": 4.9782
+      },
+      "diabetes": {
+        "mean": 0.0164,
+        "std": 0.1271
+      },
+      "chronic_hypertension": {
+        "mean": 0.0,
+        "std": 1.0
+      },
+      "previous_preeclampsia": {
+        "mean": 0.0,
+        "std": 1.0
+      },
+      "family_history_hypertension": {
+        "mean": 0.0911,
+        "std": 0.288
+      },
+      "family_history_heart_disease": {
+        "mean": 0.0492,
+        "std": 0.2164
+      },
+      "chronic_kidney_disease": {
+        "mean": 0.0018,
+        "std": 0.0427
+      },
+      "multiple_pregnancy": {
+        "mean": 0.0109,
+        "std": 0.1041
+      },
+      "active_smoking": {
+        "mean": 0.122,
+        "std": 0.3276
+      },
+      "previous_pregnancies": {
+        "mean": 0.1697,
+        "std": 0.3758
+      },
+      "previous_deliveries": {
+        "mean": 0.071,
+        "std": 0.2571
+      },
+      "previous_miscarriages": {
+        "mean": 0.0965,
+        "std": 0.2956
+      },
+      "previous_cesareans": {
+        "mean": 0.0073,
+        "std": 0.0851
+      },
+      "nulliparous": {
+        "mean": 0.8324,
+        "std": 0.3738
+      }
+    },
+    "1": {
+      "age_years": {
+        "mean": 33.3333,
+        "std": 6.2286
+      },
+      "bmi_initial": {
+        "mean": 26.4312,
+        "std": 3.6942
+      },
+      "gestational_week": {
+        "mean": 28.1406,
+        "std": 6.1389
+      },
+      "gestational_trimester": {
+        "mean": 2.5742,
+        "std": 0.4952
+      },
+      "height_cm": {
+        "mean": 179.7508,
+        "std": 173.3369
+      },
+      "initial_weight": {
+        "mean": 67.3052,
+        "std": 9.3569
+      },
+      "weight_kg": {
+        "mean": 72.9817,
+        "std": 10.1487
+      },
+      "weight_gain": {
+        "mean": 5.5199,
+        "std": 3.3475
+      },
+      "systolic": {
+        "mean": 147.8612,
+        "std": 18.1819
+      },
+      "diastolic": {
+        "mean": 94.1121,
+        "std": 7.1888
+      },
+      "mean_arterial_pressure": {
+        "mean": 111.2994,
+        "std": 6.6231
+      },
+      "diabetes": {
+        "mean": 0.1036,
+        "std": 0.3052
+      },
+      "chronic_hypertension": {
+        "mean": 0.5546,
+        "std": 0.4977
+      },
+      "previous_preeclampsia": {
+        "mean": 0.2297,
+        "std": 0.4212
+      },
+      "family_history_hypertension": {
+        "mean": 0.3333,
+        "std": 0.4721
+      },
+      "family_history_heart_disease": {
+        "mean": 0.2101,
+        "std": 0.4079
+      },
+      "chronic_kidney_disease": {
+        "mean": 0.0896,
+        "std": 0.2861
+      },
+      "multiple_pregnancy": {
+        "mean": 0.1485,
+        "std": 0.3561
+      },
+      "active_smoking": {
+        "mean": 0.0924,
+        "std": 0.29
+      },
+      "previous_pregnancies": {
+        "mean": 1.9855,
+        "std": 1.7653
+      },
+      "previous_deliveries": {
+        "mean": 0.9804,
+        "std": 1.2484
+      },
+      "previous_miscarriages": {
+        "mean": 1.0196,
+        "std": 1.385
+      },
+      "previous_cesareans": {
+        "mean": 0.5322,
+        "std": 0.9008
+      },
+      "nulliparous": {
+        "mean": 0.3081,
+        "std": 0.4624
+      }
+    },
+    "2": {
+      "age_years": {
+        "mean": 27.4787,
+        "std": 4.8922
+      },
+      "bmi_initial": {
+        "mean": 22.202,
+        "std": 3.1083
+      },
+      "gestational_week": {
+        "mean": 32.2845,
+        "std": 3.9158
+      },
+      "gestational_trimester": {
+        "mean": 2.9119,
+        "std": 0.2837
+      },
+      "height_cm": {
+        "mean": 172.8542,
+        "std": 139.896
+      },
+      "initial_weight": {
+        "mean": 56.7824,
+        "std": 8.5622
+      },
+      "weight_kg": {
+        "mean": 64.5568,
+        "std": 9.7098
+      },
+      "weight_gain": {
+        "mean": 7.4991,
+        "std": 2.6288
+      },
+      "systolic": {
+        "mean": 112.1979,
+        "std": 16.0977
+      },
+      "diastolic": {
+        "mean": 67.9579,
+        "std": 5.9198
+      },
+      "mean_arterial_pressure": {
+        "mean": 82.1334,
+        "std": 5.342
+      },
+      "diabetes": {
+        "mean": 0.0243,
+        "std": 0.1541
+      },
+      "chronic_hypertension": {
+        "mean": 0.0,
+        "std": 1.0
+      },
+      "previous_preeclampsia": {
+        "mean": 0.0061,
+        "std": 0.0778
+      },
+      "family_history_hypertension": {
+        "mean": 0.1018,
+        "std": 0.3026
+      },
+      "family_history_heart_disease": {
+        "mean": 0.0502,
+        "std": 0.2184
+      },
+      "chronic_kidney_disease": {
+        "mean": 0.0046,
+        "std": 0.0674
+      },
+      "multiple_pregnancy": {
+        "mean": 0.035,
+        "std": 0.1838
+      },
+      "active_smoking": {
+        "mean": 0.0684,
+        "std": 0.2526
+      },
+      "previous_pregnancies": {
+        "mean": 3.429,
+        "std": 1.1985
+      },
+      "previous_deliveries": {
+        "mean": 1.7416,
+        "std": 1.4207
+      },
+      "previous_miscarriages": {
+        "mean": 1.6824,
+        "std": 1.4263
+      },
+      "previous_cesareans": {
+        "mean": 0.8875,
+        "std": 1.0936
+      },
+      "nulliparous": {
+        "mean": 0.0,
+        "std": 1.0
+      }
+    },
+    "3": {
+      "age_years": {
+        "mean": 31.4037,
+        "std": 5.7944
+      },
+      "bmi_initial": {
+        "mean": 31.7822,
+        "std": 3.2252
+      },
+      "gestational_week": {
+        "mean": 31.7463,
+        "std": 5.0983
+      },
+      "gestational_trimester": {
+        "mean": 2.8211,
+        "std": 0.3837
+      },
+      "height_cm": {
+        "mean": 172.8444,
+        "std": 134.7583
+      },
+      "initial_weight": {
+        "mean": 82.2886,
+        "std": 9.7453
+      },
+      "weight_kg": {
+        "mean": 92.6348,
+        "std": 10.377
+      },
+      "weight_gain": {
+        "mean": 10.4144,
+        "std": 3.5536
+      },
+      "systolic": {
+        "mean": 128.0611,
+        "std": 14.4865
+      },
+      "diastolic": {
+        "mean": 82.0855,
+        "std": 7.8484
+      },
+      "mean_arterial_pressure": {
+        "mean": 97.264,
+        "std": 7.0219
+      },
+      "diabetes": {
+        "mean": 0.383,
+        "std": 0.4867
+      },
+      "chronic_hypertension": {
+        "mean": 0.0367,
+        "std": 0.1882
+      },
+      "previous_preeclampsia": {
+        "mean": 0.0183,
+        "std": 0.1344
+      },
+      "family_history_hypertension": {
+        "mean": 0.1904,
+        "std": 0.393
+      },
+      "family_history_heart_disease": {
+        "mean": 0.1743,
+        "std": 0.3798
+      },
+      "chronic_kidney_disease": {
+        "mean": 0.0367,
+        "std": 0.1882
+      },
+      "multiple_pregnancy": {
+        "mean": 0.1078,
+        "std": 0.3105
+      },
+      "active_smoking": {
+        "mean": 0.0803,
+        "std": 0.272
+      },
+      "previous_pregnancies": {
+        "mean": 2.162,
+        "std": 1.8723
+      },
+      "previous_deliveries": {
+        "mean": 1.0206,
+        "std": 1.3208
+      },
+      "previous_miscarriages": {
+        "mean": 1.1307,
+        "std": 1.4203
+      },
+      "previous_cesareans": {
+        "mean": 0.5023,
+        "std": 0.921
+      },
+      "nulliparous": {
+        "mean": 0.3028,
+        "std": 0.46
+      }
+    }
+  }
+}

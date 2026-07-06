@@ -1,0 +1,160 @@
+{
+  "info": {
+    "name": "ML Service (Salud Prenatal)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8001/",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8001",
+          "path": [
+            ""
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "History",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8001/history",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8001",
+          "path": [
+            "history"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Predict - Éxito (Cluster 0)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"age_years\": 23,\n    \"bmi_initial\": 21.5,\n    \"gestational_week\": 14,\n    \"gestational_trimester\": 2,\n    \"height_cm\": 163.0,\n    \"initial_weight\": 57.0,\n    \"weight_kg\": 60.0,\n    \"weight_gain\": 3.0,\n    \"systolic\": 110.0,\n    \"diastolic\": 70.0,\n    \"mean_arterial_pressure\": 83.0,\n    \"diabetes\": 0,\n    \"chronic_hypertension\": 0,\n    \"previous_preeclampsia\": 0,\n    \"family_history_hypertension\": 0,\n    \"family_history_heart_disease\": 0,\n    \"chronic_kidney_disease\": 0,\n    \"multiple_pregnancy\": 0,\n    \"active_smoking\": 0,\n    \"previous_pregnancies\": 0,\n    \"previous_deliveries\": 0,\n    \"previous_miscarriages\": 0,\n    \"previous_cesareans\": 0,\n    \"nulliparous\": 1,\n    \"education_level\": \"superior\",\n    \"residence\": \"urbana\",\n    \"marital_status\": \"single\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8001/predict",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8001",
+          "path": [
+            "predict"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Predict - Éxito (Cluster 1)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"age_years\": 36,\n    \"bmi_initial\": 27.2,\n    \"gestational_week\": 28,\n    \"gestational_trimester\": 3,\n    \"height_cm\": 158.0,\n    \"initial_weight\": 67.9,\n    \"weight_kg\": 78.0,\n    \"weight_gain\": 10.1,\n    \"systolic\": 148.0,\n    \"diastolic\": 96.0,\n    \"mean_arterial_pressure\": 113.0,\n    \"diabetes\": 0,\n    \"chronic_hypertension\": 1,\n    \"previous_preeclampsia\": 1,\n    \"family_history_hypertension\": 1,\n    \"family_history_heart_disease\": 0,\n    \"chronic_kidney_disease\": 0,\n    \"multiple_pregnancy\": 0,\n    \"active_smoking\": 0,\n    \"previous_pregnancies\": 1,\n    \"previous_deliveries\": 1,\n    \"previous_miscarriages\": 0,\n    \"previous_cesareans\": 0,\n    \"nulliparous\": 0,\n    \"education_level\": \"superior\",\n    \"residence\": \"urbana\",\n    \"marital_status\": \"married\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8001/predict",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8001",
+          "path": [
+            "predict"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Predict - Fallo Adrede (Faltan campos)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"age_years\": 25\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8001/predict",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8001",
+          "path": [
+            "predict"
+          ]
+        },
+        "description": "Falla porque faltan todos los demás campos requeridos por Pydantic."
+      },
+      "response": []
+    },
+    {
+      "name": "Predict - Fallo Adrede (Tipo incorrecto)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"age_years\": \"texto_en_lugar_de_entero\",\n    \"bmi_initial\": 21.5,\n    \"gestational_week\": 14,\n    \"gestational_trimester\": 2,\n    \"height_cm\": 163.0,\n    \"initial_weight\": 57.0,\n    \"weight_kg\": 60.0,\n    \"weight_gain\": 3.0,\n    \"systolic\": 110.0,\n    \"diastolic\": 70.0,\n    \"mean_arterial_pressure\": 83.0,\n    \"diabetes\": 0,\n    \"chronic_hypertension\": 0,\n    \"previous_preeclampsia\": 0,\n    \"family_history_hypertension\": 0,\n    \"family_history_heart_disease\": 0,\n    \"chronic_kidney_disease\": 0,\n    \"multiple_pregnancy\": 0,\n    \"active_smoking\": 0,\n    \"previous_pregnancies\": 0,\n    \"previous_deliveries\": 0,\n    \"previous_miscarriages\": 0,\n    \"previous_cesareans\": 0,\n    \"nulliparous\": 1,\n    \"education_level\": \"superior\",\n    \"residence\": \"urbana\",\n    \"marital_status\": \"single\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8001/predict",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8001",
+          "path": [
+            "predict"
+          ]
+        },
+        "description": "Falla porque se espera un entero (o flotante) y se envía texto inconvertible."
+      },
+      "response": []
+    }
+  ]
+}
