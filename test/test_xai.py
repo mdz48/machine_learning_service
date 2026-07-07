@@ -1,4 +1,6 @@
 """Pruebas de la capa de explicabilidad (no requiere BD, solo los artefactos del modelo)."""
+import json
+import math
 import os
 import sys
 
@@ -58,3 +60,13 @@ def test_vecinas_devuelve_tres():
     _, xai = _explain(PACIENTE_HIPERTENSA)
     assert len(xai["pacientes_similares"]) == 3
     assert all("perfil" in v for v in xai["pacientes_similares"])
+
+
+def test_salida_sin_nan_serializa_json_estricto():
+    # Regresion: el dataset tiene faltantes; una vecina con NaN rompia el INSERT JSONB.
+    # json.dumps(allow_nan=False) lanza ValueError si queda algun NaN en la salida.
+    _, xai = _explain(PACIENTE_HIPERTENSA)
+    json.dumps(xai, allow_nan=False)
+    for sp in xai["pacientes_similares"]:
+        for v in sp.values():
+            assert not (isinstance(v, float) and math.isnan(v))

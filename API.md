@@ -108,9 +108,24 @@ Además del clúster asignado, la respuesta incluye una **capa de explicabilidad
     { "age_years": 39.0, "systolic": 147.0, "diastolic": 88.0, "bmi_initial": 36.2, "perfil": "Alto Riesgo Hipertensivo" },
     { "age_years": 34.0, "systolic": 141.0, "diastolic": 96.0, "bmi_initial": 30.0, "perfil": "Riesgo Metabolico" }
   ],
-  "explicacion": "La paciente fue asignada al perfil «Alto Riesgo Hipertensivo» debido principalmente a: hipertensión crónica, preeclampsia previa, presión arterial media. Estos rasgos coinciden con el patrón clínico característico de este grupo."
+  "explicacion": "La paciente fue asignada al perfil «Alto Riesgo Hipertensivo» debido principalmente a: hipertensión crónica, preeclampsia previa, presión arterial media. Estos rasgos coinciden con el patrón clínico característico de este grupo.",
+  "recomendaciones": {
+    "fuente": "SOMANZ – Prevención de preeclampsia (Parte 3A)",
+    "descargo": "Recomendaciones generales de guía clínica para este perfil de riesgo; no constituyen una prescripción. La decisión final corresponde al médico tratante.",
+    "aplica_a_perfil": "Alto Riesgo Hipertensivo / Preeclampsia",
+    "items": [
+      { "intervencion": "Aspirina", "recomendacion": "El inicio de aspirina se recomienda antes de la semana 16; en este momento la ventana de inicio ya pasó.", "grade": "1B", "aplicable_ahora": false, "nota": "Evaluar de forma individualizada la continuación si la aspirina ya fue iniciada previamente." },
+      { "intervencion": "Calcio oral", "recomendacion": "En mujeres con baja ingesta dietética de calcio (< 1 g/día), se recomienda suplementación de calcio.", "grade": "1C", "aplicable_ahora": true, "nota": "Evaluar la ingesta dietética de calcio antes de recomendar la suplementación (punto de práctica)." }
+    ],
+    "no_recomendados": [
+      { "intervencion": "Omega-3 (LCPUFA)", "grade": "2B", "nota": "No recomendado hasta contar con más datos." },
+      { "intervencion": "Suplementación con ajo", "grade": "2D", "nota": "No recomendado hasta contar con más datos." }
+    ]
+  }
 }
 ```
+
+> El campo `recomendaciones` **solo aparece para el perfil de Alto Riesgo Hipertensivo (`risk_cluster: 1`)**. Para los demás perfiles se omite.
 
 #### Descripción de los campos
 
@@ -126,6 +141,24 @@ Además del clúster asignado, la respuesta incluye una **capa de explicabilidad
 | `factores_determinantes` | lista (top-5) | Variables que **definen** el perfil y que la paciente exhibe. Cada una: `variable`, `etiqueta` (legible), `valor_paciente`, `promedio_perfil`, `score` (mayor = más determinante). |
 | `pacientes_similares` | lista (3) | Pacientes históricas más parecidas (vecinas del KNN): `age_years`, `systolic`, `diastolic`, `bmi_initial`, `perfil`. *Nota: son datos sintéticos; en un despliegue con datos reales estas pacientes deberían anonimizarse.* |
 | `explicacion` | str | Explicación en lenguaje natural, armada con los factores determinantes. |
+| `recomendaciones` | objeto \| ausente | **Solo para `risk_cluster: 1`.** Recomendaciones de guía clínica (SOMANZ) para el perfil hipertensivo. Ver detalle abajo. |
+
+#### Campo `recomendaciones` (solo perfil hipertensivo)
+
+Recomendaciones de la guía **SOMANZ** (prevención de preeclampsia). **No son una prescripción**: son guía general para el perfil, para consideración del médico tratante (ver `descargo`). Cada ítem incluye su calificación **GRADE** (`1B`, `1C`, `2B`, `2D`...).
+
+| Sub-campo | Descripción |
+|---|---|
+| `fuente` | Referencia de la guía. |
+| `descargo` | Aviso de que no es prescripción; decide el médico tratante. |
+| `aplica_a_perfil` | Perfil de riesgo al que aplican. |
+| `items` | Lista de intervenciones recomendadas: `intervencion`, `recomendacion`, `grade`, `aplicable_ahora` (bool), `nota`. |
+| `no_recomendados` | Intervenciones no recomendadas por evidencia insuficiente (omega-3, ajo). |
+
+**Aspirina sensible a la edad gestacional** (`aplicable_ahora` cambia según `gestational_week`):
+- `< 16` semanas → iniciar aspirina 150 mg/día (`aplicable_ahora: true`, GRADE 1B).
+- `16–33` semanas → ventana de inicio pasada (`aplicable_ahora: false`); evaluar continuación si ya se inició.
+- `>= 34` semanas → considerar cese entre la semana 34 y el parto (GRADE 2B).
 
 ---
 

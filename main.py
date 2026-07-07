@@ -8,6 +8,7 @@ import numpy as np
 from sqlalchemy.orm import Session
 from database import engine, Base, get_db, InferenceRecord, MLModel, SessionLocal
 import explainability
+import recommendations
 import time
 
 app = FastAPI(title="ML Service", root_path="/ml")
@@ -164,6 +165,11 @@ def predict_risk(data: PatientMedicalData, db: Session = Depends(get_db)):
             "inference_time_ms": inference_time_ms,
             **xai
         }
+
+        # Recomendaciones de guía clínica (solo aplica al perfil hipertensivo, cluster 1)
+        recs = recommendations.get_recommendations(int(cluster), data.gestational_week)
+        if recs:
+            result["recomendaciones"] = recs
         
         # Save inference to database
         db_record = InferenceRecord(
