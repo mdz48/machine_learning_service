@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+import os
 import joblib
 import json
 import pandas as pd
@@ -8,7 +9,10 @@ import numpy as np
 from sqlalchemy.orm import Session
 from database import engine, Base, get_db, InferenceRecord, MLModel, SessionLocal
 import explainability
+import recommendations
+import nlp
 import time
+from typing import List
 
 app = FastAPI(title="ML Service", root_path="/ml")
 
@@ -164,6 +168,11 @@ def predict_risk(data: PatientMedicalData, db: Session = Depends(get_db)):
             "inference_time_ms": inference_time_ms,
             **xai
         }
+
+        # Recomendaciones de guía clínica (solo aplica al perfil hipertensivo, cluster 1)
+        recs = recommendations.get_recommendations(int(cluster), data.gestational_week)
+        if recs:
+            result["recomendaciones"] = recs
         
         # Save inference to database
         db_record = InferenceRecord(
@@ -185,3 +194,56 @@ def predict_risk(data: PatientMedicalData, db: Session = Depends(get_db)):
 def get_history(db: Session = Depends(get_db)):
     inferences = db.query(InferenceRecord).order_by(InferenceRecord.timestamp.desc()).all()
     return inferences
+
+
+# ---------------------------------------------------------------------------
+# NLP: extraccion de sintomas de texto libre (RF-29/30/31)
+# ---------------------------------------------------------------------------
+class SymptomExtractionRequest(BaseModel):
+    text: str
+
+
+class ExtractedZone(BaseModel):
+    code: str
+    label: str
+    raw_text: str
+    negated: bool
+    score: float
+
+
+class ExtractedSymptom(BaseModel):
+    code: str
+    label: str
+    raw_text: str
+    negated: bool
+    score: float
+    alarm: bool
+    zones: List[ExtractedZone] = []
+
+
+class SymptomExtractionResponse(BaseModel):
+    symptoms: List[ExtractedSymptom]
+    body_zones: List[ExtractedZone]
+    model_version: str
+
+
+@app.post("/nlp/extract-symptoms", response_model=SymptomExtractionResponse)
+def extract_symptoms(req: SymptomExtractionRequest):
+    """Pipeline NER + negacion + normalizacion por embeddings sobre texto libre.
+
+    Los modelos ONNX se cargan de forma perezosa en la primera llamada. Si los
+    artefactos aun no fueron exportados, responde 503 para que el backend degrade
+    sin bloquear el guardado de la bitacora."""
+    try:
+        pipeline = nlp.get_pipeline()
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Servicio NLP no disponible: {e}")
+    try:
+        result = pipeline.extract(req.text)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error procesando texto: {e}")
+    return {
+        "symptoms": result["symptoms"],
+        "body_zones": result["body_zones"],
+        "model_version": os.getenv("NLP_NER_MODEL", "symptemist-onnx-int8"),
+    }

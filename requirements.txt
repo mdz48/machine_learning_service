@@ -8,3 +8,15 @@ sqlalchemy
 psycopg2-binary
 python-dotenv==1.2.2
 pytest==9.1.1
+
+# --- NLP runtime (extraccion de sintomas, RF-29/30/31) ---
+# Ejecuta los modelos ONNX cuantizados; NO requiere torch en memoria.
+onnxruntime==1.20.1
+transformers==4.46.3
+spacy==3.8.2
+# Modelo spaCy para negacion (instalar aparte):
+#   python -m spacy download es_core_news_sm
+
+# --- SOLO build: exportar/cuantizar los .onnx una vez (scripts/export_nlp_models.py) ---
+# No instalar en el servidor de produccion (traen torch, ~1 GB):
+#   pip install "optimum[exporters,onnxruntime]" torch

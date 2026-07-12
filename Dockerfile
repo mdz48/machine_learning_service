@@ -13,6 +13,10 @@ COPY requirements.txt .
 # Instalar dependencias
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Modelo de spaCy para la etapa de negacion + tokenizacion de zonas del NLP.
+# NO viene en requirements.txt; sin el, el pipeline NLP falla al cargar (spacy.load).
+RUN python -m spacy download es_core_news_sm
+
 # Copiar todo el codigo fuente
 COPY . .
 
