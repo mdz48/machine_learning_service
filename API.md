@@ -187,6 +187,69 @@ Consulta el registro histórico de todas las predicciones realizadas por el mode
 ```
 
 ---
+
+### 4. Extracción de Síntomas y Zonas del Cuerpo (NLP)
+Recibe texto libre en español (lo que la paciente/médico escribe en la bitácora) y devuelve los
+**síntomas** y las **zonas del cuerpo** detectados. Tolera errores de escritura de la paciente
+(las zonas se detectan con coincidencia difusa por distancia de edición: `caeza` → cabeza).
+
+- **Método**: `POST`
+- **Ruta**: `/nlp/extract-symptoms`
+- **Headers**: `Content-Type: application/json`
+
+#### Body (JSON)
+```json
+{ "text": "me duele la caeza y tengo los pies hinchados" }
+```
+
+#### Respuesta Exitosa (200 OK)
+Los campos `symptoms[].zones` y `body_zones` son **aditivos**: un consumidor que solo lea
+`symptoms[]` sigue funcionando.
+
+```json
+{
+  "symptoms": [
+    {
+      "code": "CEFALEA",
+      "label": "Cefalea",
+      "raw_text": "me duele la caeza",
+      "negated": false,
+      "score": 0.83,
+      "alarm": true,
+      "zones": [
+        { "code": "CABEZA", "label": "Cabeza", "raw_text": "caeza", "negated": false, "score": 1.0 }
+      ]
+    }
+  ],
+  "body_zones": [
+    { "code": "CABEZA", "label": "Cabeza", "raw_text": "caeza", "negated": false, "score": 1.0 }
+  ],
+  "model_version": "symptemist-onnx-int8"
+}
+```
+
+#### Descripción de los campos
+
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `symptoms` | lista | Síntomas detectados. Cada uno mantiene sus campos originales + `zones`. |
+| `symptoms[].negated` | bool | `true` si la paciente lo **niega** ("no me duele..."). No tratar como presente. |
+| `symptoms[].alarm` | bool | `true` = signo de alarma obstétrica. |
+| `symptoms[].zones` | lista | Zonas del cuerpo vinculadas a **ese** síntoma (misma frase). Puede ir vacía. |
+| `body_zones` | lista | **Todas** las zonas detectadas, incluidas las que no se ligaron a ningún síntoma. |
+| *objeto zona* | | `{ code, label, raw_text, negated, score }`. `score = 1.0` (coincidencia por gazetteer). |
+| `model_version` | str | Versión del modelo NER de síntomas. |
+
+> Las zonas son **opcionales**: puede haber síntomas sin zonas y zonas sin síntoma. La extracción de
+> zonas no usa un modelo nuevo (gazetteer difuso con spaCy); no afecta el presupuesto de memoria.
+
+#### Respuestas de error
+- **503 Service Unavailable**: el runtime NLP no está disponible (los artefactos ONNX aún no se
+  exportaron con `scripts/export_nlp_models.py`). El backend debe **degradar sin bloquear** el flujo
+  del paciente (permitir captura manual de síntomas).
+- **500 Internal Server Error**: error procesando el texto.
+
+---
 > **Documentación Interactiva Automática**
 > Al estar construida sobre FastAPI, puedes probar todos los endpoints y ver los esquemas dinámicamente accediendo a la ruta `/docs` (Swagger UI) o `/redoc` cuando el servidor esté corriendo (por defecto en `http://localhost:8000/docs`).
 
