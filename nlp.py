@@ -83,18 +83,33 @@ def _is_content_span(text: str) -> bool:
     return bool(toks) and not all(t in stops for t in toks)
 
 
+# Verbos de capacidad. Una cue seguida de uno de estos NO niega el sintoma: lo EXPRESA.
+# "no puedo respirar" ES la disnea (signo de alarma), no su negacion. El NER corta el span
+# en "respirar" y deja el "no puedo" fuera, por eso hay que mirar que sigue a la cue.
+_ABILITY_VERBS = {
+    "puedo", "puede", "podia", "podía", "pude", "puedes",
+    "logro", "logra", "consigo", "consigue",
+}
+
+
 def _is_negated(doc, span_start: int) -> bool:
-    """True si hay una cue de negacion no cancelada antes del span, en su misma frase."""
+    """True si hay una cue de negacion no cancelada antes del span, en su misma frase.
+
+    Excepcion: si la cue va seguida de un verbo de capacidad ("no puedo respirar"), la
+    negacion forma parte del propio sintoma y NO se marca como negado.
+    """
     for sent in doc.sents:
         if sent.start_char <= span_start < sent.end_char:
+            toks = [t for t in sent if t.idx < span_start]  # solo lo previo al span
             negated = False
-            for tok in sent:
-                if tok.idx >= span_start:
-                    break  # ya pasamos el inicio del span
+            for i, tok in enumerate(toks):
                 low = tok.text.lower()
                 if low in _NEG_TERMINATORS or tok.is_punct:
                     negated = False  # reinicia scope
                 elif low in _NEG_CUES:
+                    nxt = toks[i + 1].text.lower() if i + 1 < len(toks) else ""
+                    if nxt in _ABILITY_VERBS:
+                        continue  # "no puedo X": la negacion ES el sintoma
                     negated = True
             return negated
     return False

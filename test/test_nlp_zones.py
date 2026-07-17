@@ -67,6 +67,27 @@ def test_is_negated_terminador_corta_scope():
     assert nlp_mod._is_negated(doc, start) is False
 
 
+def test_is_negated_no_marca_sintoma_expresado_con_negacion():
+    """'no puedo respirar' ES el sintoma (disnea), no una negacion de disnea.
+
+    El NER corta el span en 'respirar', dejando 'no puedo' fuera; NegEx no debe
+    interpretar ese 'no' como que la paciente niega la disnea (signo de alarma).
+    """
+    text = "no puedo respirar bien"
+    doc = _blank_doc(text)
+    start = text.index("respirar")
+    assert nlp_mod._is_negated(doc, start) is False
+
+
+def test_is_negated_sigue_detectando_negacion_real():
+    """Regresion: una negacion de verdad ('no tengo X') debe seguir marcandose."""
+    for text, palabra in [("no tengo fiebre", "fiebre"),
+                          ("no tengo dolor de cabeza", "dolor"),
+                          ("sin sangrado", "sangrado")]:
+        doc = _blank_doc(text)
+        assert nlp_mod._is_negated(doc, text.index(palabra)) is True, text
+
+
 # --- Task 3: detección de zonas (Matcher difuso) ---
 
 def test_find_zone_spans_detecta_zona_simple():
