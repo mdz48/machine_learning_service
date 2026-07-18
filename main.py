@@ -11,6 +11,7 @@ from database import engine, Base, get_db, InferenceRecord, MLModel, SessionLoca
 import explainability
 import recommendations
 import nlp
+import llm_extractor
 import time
 from typing import List
 
@@ -246,4 +247,36 @@ def extract_symptoms(req: SymptomExtractionRequest):
         "symptoms": result["symptoms"],
         "body_zones": result["body_zones"],
         "model_version": os.getenv("NLP_NER_MODEL", "symptemist-onnx-int8"),
+    }
+
+
+@app.post("/nlp/extract-symptoms-llm", response_model=SymptomExtractionResponse)
+def extract_symptoms_llm(req: SymptomExtractionRequest):
+    """Extraccion de sintomas utilizando LLM (Qwen2.5) local via Ollama.
+    
+    Aplica anclaje asimetrico (zero-shot extraction + rules) para maxima exactitud
+    en descripciones libres y negaciones dobles (supera al NER estandar)."""
+    try:
+        result = llm_extractor.extract_symptoms(req.text)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error en LLM extractor: {e}")
+    
+    # Adaptar formato del LLM (SymptomResponse de pydantic) a SymptomExtractionResponse
+    symptoms_list = []
+    for s in result.symptoms:
+        symptoms_list.append(
+            ExtractedSymptom(
+                code=s.code,
+                label=s.label,
+                raw_text=s.raw_text,
+                negated=s.negated,
+                score=1.0,  # Score determinista por LLM
+                alarm=s.alarm,
+                zones=[]
+            )
+        )
+    return {
+        "symptoms": symptoms_list,
+        "body_zones": [],
+        "model_version": llm_extractor.MODEL,
     }
