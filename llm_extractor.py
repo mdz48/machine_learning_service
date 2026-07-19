@@ -1,12 +1,22 @@
 """Extraccion de sintomas con LLM local (Ollama) - alternativa experimental al pipeline NER.
 
 Version v3 (2026-07-17): prompt rico + reglas anti-alucinacion + ANCLAJE DIFUSO + validacion Pydantic.
+Version v3.1 (2026-07-17): ANCLAJE ASIMETRICO - alarmas nunca descartadas por grounded().
+Version v3.2 (2026-07-17): fix multi-negacion (Regla 2 + ejemplo) y alucinacion-OTRO (catalogo ampliado).
+Version v3.3 (2026-07-17): OTRO bypasa grounded() (como alarmas); EDEMA y DOLOR_ABDOMINAL ampliados;
+    Regla 4 extendida ('no veo bien' no es negacion); ejemplos anti-trampa adicionales.
+Version v3.4 (2026-07-17): DEBILIDAD excluye escalofrios; Regla 5 cubre 'sin novedad'; ejemplo anti-trampa.
+Version v3.4.1 (2026-07-17): Regla 4 extendida con 'no patea' y principio general ausencia=sintoma.
+Version v3.4.2 (2026-07-17): CONTRACCIONES anade 'estomago duro/piedra', DOLOR_ABDOMINAL excluye dolor general, NAUSEA_VOMITO anade 'vomite'.
 NO requiere entrenamiento: todo es contexto (prompt + few-shot + JSON schema).
 
-Resultados medidos (45 bitacoras, ver evaluation/ y docs/HANDOFF-nlp-llm.md):
-    Alarmas detectadas 24/24 | Alucinaciones 4 | Exactas 39/45 (87%).
+Resultados medidos:
+    Set de optimizacion (45 bitacoras): alarmas 24/24 | alucinaciones 4 | exactas 39/45 (87%).
+    Set held-out 1 (26 bitacoras, v3):  alarmas 12/13 | alucinaciones 5 | exactas 17/26 (65.4%).
+    Set held-out 2 (25 bitacoras, v3.2+v3.1): alarmas 7/9 | alucinaciones 2 | exactas 19/25 (76.0%).
+    El fallo peligroso en held-out: grounded() descarto EDEMA y DISURIA validos por parafraseo
+    del modelo -> resuelto en v3.1 con anclaje asimetrico.
     (vs pipeline NER curado: alarmas 15/24, alucinaciones 15, exactas 23/45.)
-    OJO: el prompt se afino sobre esas 45 bitacoras -> falta validar en un set held-out NUEVO.
 
 Config por variables de entorno:
     OLLAMA_URL   (default http://localhost:11434 ; en Docker: http://ollama:11434)
@@ -32,6 +42,13 @@ ALLOWED = [
 ]
 _ALLOWED_SET = set(ALLOWED)
 
+# Signos de alarma obstetrica: perder uno es mas peligroso que un falso positivo.
+# Nunca se descartan por anclaje (ver _grounded y extract).
+_ALARM_SET = {
+    "CEFALEA", "VISION_BORROSA", "EDEMA", "DOLOR_EPIGASTRICO", "SANGRADO",
+    "DISMINUCION_MOVIMIENTO_FETAL", "CONTRACCIONES", "DIFICULTAD_RESPIRATORIA",
+}
+
 _SCHEMA = {
     "type": "object",
     "properties": {"symptoms": {"type": "array", "items": {
@@ -49,34 +66,45 @@ _SCHEMA = {
     "required": ["symptoms"],
 }
 
-# Prompt v3: descripciones ricas de codigo (clasificacion) + reglas anti-alucinacion / anti-hipotetico.
+# Prompt v3.4: DEBILIDAD excluye escalofrios; Regla 5 cubre 'sin novedad'; ejemplo anti-trampa.
 _SYSTEM = """Eres un extractor clinico obstetrico. Tu UNICA fuente es el mensaje de la paciente.
 Extrae los SINTOMAS que la paciente dice tener AHORA.
 
 CODIGOS (elige el correcto segun el ejemplo):
 - CEFALEA: dolor de cabeza, jaqueca, me duele la cabeza (o "caeza")
 - VISION_BORROSA: veo borroso, lucecitas, manchas en la vista
-- EDEMA: hinchazon, hinchada, pies/manos/cara/tobillos hinchados
+- EDEMA: hinchazon, hinchada, pies/manos/cara/tobillos hinchados, gordos, abultados, como globos
 - DOLOR_EPIGASTRICO: dolor en la BOCA DEL ESTOMAGO, debajo de las costillas
 - SANGRADO: sangrado, manchado, hemorragia vaginal
-- DISMINUCION_MOVIMIENTO_FETAL: el bebe no se mueve, se mueve menos, no siento al bebe
-- CONTRACCIONES: contracciones, el vientre se endurece/esta duro
+- DISMINUCION_MOVIMIENTO_FETAL: el bebe no se mueve, se mueve menos, no siento al bebe, no patea
+- CONTRACCIONES: contracciones, el vientre/estomago/panza se endurece/esta duro/como piedra
 - DIFICULTAD_RESPIRATORIA: falta de aire, me ahogo, no puedo respirar, me cuesta respirar
 - MAREO: mareo, mareada, vertigo
-- DEBILIDAD: debilidad, cansancio, fatiga, sin fuerzas, agotada
+- DEBILIDAD: debilidad, cansancio, fatiga, sin fuerzas, agotada (NOT escalofrios: escalofrios -> FIEBRE)
 - FIEBRE: fiebre, calentura, escalofrios
-- NAUSEA_VOMITO: nauseas, ganas de vomitar, vomito
-- DOLOR_ABDOMINAL: dolor de vientre, colico, dolor de barriga (NO la boca del estomago, NO al orinar)
+- NAUSEA_VOMITO: nauseas, ganas de vomitar, vomito, vomite
+- DOLOR_ABDOMINAL: dolor de vientre, colico, dolor de barriga, pinchazos, punzadas en el vientre (NO la boca del estomago, NO al orinar, NO dolor de cuerpo entero)
 - DISURIA: ardor o dolor AL ORINAR
-- OTRO: cualquier sintoma que NO este arriba (comezon, tos, diarrea, insomnio, palpitaciones, dolor de espalda, romper la fuente)
+- OTRO: cualquier sintoma que NO este en la lista de arriba: comezon/picazon, tos, diarrea, insomnio/no
+  dormir, palpitaciones, dolor de espalda, romper la fuente/liquido amniotico, fotofobia/sensibilidad
+  a la luz, dolor de garganta, caida de cabello, ronchas/erupciones. Si tienes duda entre OTRO y
+  cualquier codigo, usa OTRO — nunca fuerces un sintoma al codigo mas parecido.
 
 REGLAS:
-1. raw_text = copia LITERAL de palabras del mensaje de la paciente. NUNCA copies de estas instrucciones/ejemplos.
-2. Extrae TODOS los sintomas, incluso si comparten una negacion ("no tengo A ni B" -> A y B).
+1. raw_text = copia LITERAL Y EXACTA de palabras del mensaje de la paciente. NUNCA pluralices ni cambies palabras. NUNCA copies de estas instrucciones/ejemplos.
+2. Extrae TODOS los sintomas mencionados, aunque compartan una negacion:
+   - "no tengo A ni B" -> A negado Y B negado (dos entradas separadas).
+   - "sin A ni B", "ya no tengo A ni tampoco B" -> igual, dos entradas negadas.
+   - NO omitas el segundo (o tercer) sintoma de una negacion compuesta.
 3. Si el sintoma NO esta en la lista, usa OTRO. No lo fuerces al mas parecido.
 4. negated=true SOLO si la paciente NIEGA tenerlo ("no tengo X", "ya no", "sin X"). Se reporta igual.
-   "no puedo respirar" y "el bebe no se mueve" NO son negaciones: SON el sintoma (negated=false).
-5. Ignora sintomas hipoteticos, de terceros, o del medico. Si la paciente dice que algo esta BIEN/NORMAL, NO es sintoma.
+   PRINCIPIO: cuando la AUSENCIA de algo ES el problema, usa negated=false. Ejemplos:
+   - "no puedo respirar" -> DIFICULTAD_RESPIRATORIA negated:false
+   - "no veo bien" -> VISION_BORROSA negated:false
+   - "el bebe no se mueve" / "no patea" / "no da senales" -> DISMINUCION_MOVIMIENTO_FETAL negated:false
+   - "no tolero" / "no puedo caminar" -> sintoma presente (negated:false)
+5. Ignora sintomas hipoteticos, de terceros, o del medico. Si la paciente dice que algo esta BIEN,
+   NORMAL, SIN NOVEDAD o TODO TRANQUILO -> NO es sintoma. "sin novedad" = normal, no extraer nada.
 6. Si no hay ningun sintoma real, devuelve {"symptoms":[]}.
 
 --- EJEMPLOS (NO son la entrada) ---
@@ -92,6 +120,18 @@ IN: "la doctora me dijo que si sangro vaya al hospital"
 OUT: {"symptoms":[]}
 IN: "todo bien, el bebe se mueve bien"
 OUT: {"symptoms":[]}
+IN: "no tengo contracciones ni tampoco sangrado"
+OUT: {"symptoms":[{"code":"CONTRACCIONES","raw_text":"no tengo contracciones","negated":true,"intensity":null,"duration":null,"body_zone":null},{"code":"SANGRADO","raw_text":"tampoco sangrado","negated":true,"intensity":null,"duration":null,"body_zone":null}]}
+IN: "tengo tos y dolor de garganta"
+OUT: {"symptoms":[{"code":"OTRO","raw_text":"tos","negated":false,"intensity":null,"duration":null,"body_zone":null},{"code":"OTRO","raw_text":"dolor de garganta","negated":false,"intensity":null,"duration":null,"body_zone":null}]}
+IN: "me molesta mucho la luz del sol"
+OUT: {"symptoms":[{"code":"OTRO","raw_text":"me molesta mucho la luz del sol","negated":false,"intensity":null,"duration":null,"body_zone":null}]}
+IN: "el bebe se mueve normal hoy"
+OUT: {"symptoms":[]}
+IN: "el bebe se mueve bien, todo sin novedad"
+OUT: {"symptoms":[]}
+IN: "no veo bien, todo se me nubla"
+OUT: {"symptoms":[{"code":"VISION_BORROSA","raw_text":"no veo bien","negated":false,"intensity":null,"duration":null,"body_zone":null}]}
 --- FIN EJEMPLOS ---"""
 
 
@@ -109,10 +149,11 @@ def _content_words(s: str):
 
 
 def _grounded(raw: str, text: str) -> bool:
-    """Anclaje DIFUSO: raw_text debe estar (o casi) en el texto de la paciente.
+    """Anclaje DIFUSO para sintomas NO-alarma: raw_text debe estar (o casi) en el texto.
 
     Mata las alucinaciones por 'fuga de prompt' (el 3B copia sus instrucciones como
     sintomas), pero tolera typos del propio modelo en raw_text (substring exacto fallaria).
+    No se llama para codigos en _ALARM_SET (ver extract): el anclaje es ASIMETRICO.
     """
     r = " ".join((raw or "").lower().split())
     tl = " ".join(text.lower().split())
@@ -148,7 +189,11 @@ def extract(text: str, use_fallback: bool = False) -> dict:
     """Extrae sintomas con el LLM. Devuelve {"symptoms":[...], "source": "llm"|"fallback"|"empty"}.
 
     Cada sintoma: code, raw_text, negated, intensity, duration, body_zone.
-    Se descartan (anclaje) los que no esten en el texto de la paciente (anti-alucinacion).
+    Anclaje ASIMETRICO (v3.1 + v3.3):
+      - Signos de ALARMA (_ALARM_SET): nunca se descartan. Un falso positivo lo descarta el medico.
+      - OTRO: nunca se descarta. El modelo suele identificar bien el codigo pero parafrasea raw_text;
+        un OTRO falso llega al medico como sugerencia no-peligrosa.
+      - Resto de codigos: anclaje difuso (>=60% palabras en el texto) filtra alucinaciones de fuga.
     Con use_fallback=True, si el LLM falla usa el pipeline curado (nlp.py) como respaldo.
     """
     text = (text or "").strip()
@@ -162,9 +207,12 @@ def extract(text: str, use_fallback: bool = False) -> dict:
                 m = ExtractedSymptomLLM(**s)
             except ValidationError:
                 continue
-            if m.code in _ALLOWED_SET and _grounded(m.raw_text, text):
+            if m.code not in _ALLOWED_SET:
+                continue
+            if m.code in _ALARM_SET or m.code == "OTRO" or _grounded(m.raw_text, text):
                 syms.append(m.model_dump())
         return {"symptoms": syms, "source": "llm"}
+
     except Exception:
         if use_fallback:
             import nlp
