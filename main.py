@@ -257,26 +257,32 @@ def extract_symptoms_llm(req: SymptomExtractionRequest):
     Aplica anclaje asimetrico (zero-shot extraction + rules) para maxima exactitud
     en descripciones libres y negaciones dobles (supera al NER estandar)."""
     try:
-        result = llm_extractor.extract_symptoms(req.text)
+        result = llm_extractor.extract(req.text)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error en LLM extractor: {e}")
     
-    # Adaptar formato del LLM (SymptomResponse de pydantic) a SymptomExtractionResponse
+    from nlp_catalog import CATALOG_BY_CODE
+    
+    # Adaptar formato del LLM (dict de python) a SymptomExtractionResponse
     symptoms_list = []
-    for s in result.symptoms:
+    for s in result.get("symptoms", []):
+        code = s.get("code")
+        concept = CATALOG_BY_CODE.get(code)
+        label = concept.label if concept else code
+        alarm = concept.alarm if concept else False
         symptoms_list.append(
             ExtractedSymptom(
-                code=s.code,
-                label=s.label,
-                raw_text=s.raw_text,
-                negated=s.negated,
+                code=code,
+                label=label,
+                raw_text=s.get("raw_text", ""),
+                negated=s.get("negated", False),
                 score=1.0,  # Score determinista por LLM
-                alarm=s.alarm,
+                alarm=alarm,
                 zones=[]
             )
         )
     return {
         "symptoms": symptoms_list,
         "body_zones": [],
-        "model_version": llm_extractor.MODEL,
+        "model_version": llm_extractor.OLLAMA_MODEL,
     }
