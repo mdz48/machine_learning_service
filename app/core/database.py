@@ -28,6 +28,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
 
+
 class MLModel(Base):
     __tablename__ = "ml_models"
 
@@ -53,6 +54,7 @@ class InferenceRecord(Base):
     prediction_result = Column(JSONB, nullable=False)
 
     model = relationship("MLModel", back_populates="inferences")
+
 
 def get_db():
     db = SessionLocal()

@@ -1,12 +1,3 @@
-"""Fixtures de test que aíslan la BD real.
-
-Cada test corre dentro de una transacción externa con SAVEPOINTs anidados: aunque el
-endpoint `/predict` llame `db.commit()` internamente, todo se revierte al terminar el
-test, así que la base compartida NO queda con inferencias basura.
-
-Requisito: debe existir un `MLModel` activo (sembrado por `seed_model.py`); `main.py` lee
-su id al importar y las inserciones de inferencias lo referencian por FK.
-"""
 import os
 import sys
 
@@ -16,19 +7,13 @@ from sqlalchemy.orm import Session
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# NOTA: `main`/`database` se importan DENTRO de los fixtures (import perezoso) a propósito.
-# Así la colección de pytest no conecta a la BD, y los tests que no la necesitan
-# (p. ej. test_xai) corren aunque la base no esté disponible.
-
 
 @pytest.fixture()
 def db_session():
-    from database import engine
+    from app.core.database import engine
 
     connection = engine.connect()
     trans = connection.begin()
-    # join_transaction_mode="create_savepoint" (SQLAlchemy 2.0) reinicia el SAVEPOINT
-    # tras cada commit interno del endpoint, sin cerrar la transacción externa.
     session = Session(bind=connection, join_transaction_mode="create_savepoint")
     try:
         yield session
@@ -40,7 +25,8 @@ def db_session():
 
 @pytest.fixture()
 def client(db_session):
-    from main import app, get_db
+    from app.main import app
+    from app.core.database import get_db
 
     def override_get_db():
         yield db_session

@@ -5,7 +5,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import recommendations
+import app.features.risk_prediction.services.recommendation_service as recommendations
 
 
 def _aspirin(recs):
@@ -44,7 +44,7 @@ def test_incluye_calcio_y_fuente():
     recs = recommendations.get_recommendations(1, 12)
     assert any(i["intervencion"] == "Calcio oral" for i in recs["items"])
     assert "SOMANZ" in recs["fuente"]
-    assert recs["descargo"]  # descargo no vacío
+    assert recs["descargo"]
 
 
 def test_serializa_json_estricto():

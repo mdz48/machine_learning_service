@@ -6,12 +6,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import spacy
 
-import nlp_catalog
-import nlp as nlp_mod
+import app.features.nlp_symptom_extraction.domain.nlp_catalog as nlp_catalog
+import app.features.nlp_symptom_extraction.services.onnx_extractor_service as nlp_mod
+from app.features.nlp_symptom_extraction.domain.nlp_schemas import SymptomExtractionResponse, ExtractedSymptom
 
 
 def _blank_doc(text):
-    """Doc de spaCy sin modelo: solo tokenizer + sentencizer (offline, sin descargas)."""
     nlp = spacy.blank("es")
     nlp.add_pipe("sentencizer")
     return nlp(text)
@@ -27,7 +27,7 @@ def test_catalogo_zonas_no_vacio_y_codigos_unicos():
     cat = nlp_catalog.BODY_ZONE_CATALOG
     assert len(cat) >= 10
     codes = [z.code for z in cat]
-    assert len(codes) == len(set(codes))  # sin códigos duplicados
+    assert len(codes) == len(set(codes))
 
 
 def test_cada_zona_tiene_anclas_y_label():
@@ -42,8 +42,6 @@ def test_index_por_codigo_coincide():
     assert set(idx.keys()) == {z.code for z in nlp_catalog.BODY_ZONE_CATALOG}
     assert idx["CABEZA"].label == "Cabeza"
 
-
-# --- Task 2: negación a nivel de módulo ---
 
 def test_is_negated_detecta_negacion():
     text = "no me duele la cabeza"
@@ -63,11 +61,23 @@ def test_is_negated_terminador_corta_scope():
     text = "no tengo fiebre pero me duele la cabeza"
     doc = _blank_doc(text)
     start = text.index("cabeza")
-    # "pero" reinicia el scope: la cabeza NO queda negada
     assert nlp_mod._is_negated(doc, start) is False
 
 
-# --- Task 3: detección de zonas (Matcher difuso) ---
+def test_is_negated_no_marca_sintoma_expresado_con_negacion():
+    text = "no puedo respirar bien"
+    doc = _blank_doc(text)
+    start = text.index("respirar")
+    assert nlp_mod._is_negated(doc, start) is False
+
+
+def test_is_negated_sigue_detectando_negacion_real():
+    for text, palabra in [("no tengo fiebre", "fiebre"),
+                          ("no tengo dolor de cabeza", "dolor"),
+                          ("sin sangrado", "sangrado")]:
+        doc = _blank_doc(text)
+        assert nlp_mod._is_negated(doc, text.index(palabra)) is True, text
+
 
 def test_find_zone_spans_detecta_zona_simple():
     nlp = _blank_nlp()
@@ -95,7 +105,6 @@ def test_find_zone_spans_prefiere_frase_mas_larga():
     matcher = nlp_mod.build_zone_matcher(nlp)
     doc = nlp("me arde la boca del estomago")
     codes = {z["code"] for z in nlp_mod.find_zone_spans(doc, matcher)}
-    # "boca del estomago" (EPIGASTRIO) gana sobre "estomago" (ABDOMEN)
     assert "EPIGASTRIO" in codes
     assert "ABDOMEN" not in codes
 
@@ -111,9 +120,9 @@ def test_find_zone_spans_tolera_typos():
     nlp = _blank_nlp()
     matcher = nlp_mod.build_zone_matcher(nlp)
     casos = {
-        "me duele la caeza": "CABEZA",       # cabeza, dist 1
-        "me arde la vagia": "ZONA_GENITAL",  # vagina, dist 1
-        "me duele el estomgo": "ABDOMEN",    # estomago, dist 1
+        "me duele la caeza": "CABEZA",
+        "me arde la vagia": "ZONA_GENITAL",
+        "me duele el estomgo": "ABDOMEN",
     }
     for text, code in casos.items():
         doc = nlp(text)
@@ -124,12 +133,9 @@ def test_find_zone_spans_tolera_typos():
 def test_find_zone_spans_palabra_corta_no_genera_falso_positivo():
     nlp = _blank_nlp()
     matcher = nlp_mod.build_zone_matcher(nlp)
-    # "casa" está a 1 edición de "cara", pero "cara" es corta (< 5) → match exacto, sin falso positivo
     doc = nlp("me gusta mucho mi casa nueva")
     assert nlp_mod.find_zone_spans(doc, matcher) == []
 
-
-# --- Task 4: vinculación zona↔síntoma + body_zones ---
 
 def _sym(code, start, **extra):
     d = {"code": code, "label": code.title(), "raw_text": code, "_start": start,
@@ -159,12 +165,12 @@ def test_link_zones_suelta_va_solo_en_body_zones():
     text = "me duele la cabeza. tengo las manos raras"
     doc = nlp(text)
     zones = nlp_mod.find_zone_spans(doc, matcher)
-    symptoms = [_sym("CEFALEA", text.index("duele"))]  # síntoma solo en la 1a frase
+    symptoms = [_sym("CEFALEA", text.index("duele"))]
 
     body_zones = nlp_mod.link_zones(symptoms, zones, doc)
 
-    assert [z["code"] for z in symptoms[0]["zones"]] == ["CABEZA"]  # manos NO se adjunta
-    assert {z["code"] for z in body_zones} == {"CABEZA", "MANOS"}   # pero sí está en la lista
+    assert [z["code"] for z in symptoms[0]["zones"]] == ["CABEZA"]
+    assert {z["code"] for z in body_zones} == {"CABEZA", "MANOS"}
 
 
 def test_link_zones_nearest_symptom_en_frase_con_dos():
@@ -179,8 +185,8 @@ def test_link_zones_nearest_symptom_en_frase_con_dos():
 
     nlp_mod.link_zones(symptoms, zones, doc)
 
-    assert [z["code"] for z in s_cef["zones"]] == ["CABEZA"]  # cabeza → cefalea (más cercano)
-    assert [z["code"] for z in s_nau["zones"]] == ["PECHO"]   # pecho → nauseas (más cercano)
+    assert [z["code"] for z in s_cef["zones"]] == ["CABEZA"]
+    assert [z["code"] for z in s_nau["zones"]] == ["PECHO"]
 
 
 def test_link_zones_body_zones_dedup_por_codigo():
@@ -190,34 +196,25 @@ def test_link_zones_body_zones_dedup_por_codigo():
     doc = nlp(text)
     zones = nlp_mod.find_zone_spans(doc, matcher)
     body_zones = nlp_mod.link_zones([], zones, doc)
-    assert [z["code"] for z in body_zones] == ["CABEZA"]  # una sola entrada
+    assert [z["code"] for z in body_zones] == ["CABEZA"]
 
 
 def test_link_zones_contencion_evita_mal_vinculacion():
-    """Frase corrida con dos dolores y spans LARGOS de síntoma (incluyen su zona).
-
-    La vinculación debe hacerse por contención/borde, no por inicio del span, para no
-    pegar la 'cabeza' al dolor de estómago.
-    """
     nlp = _blank_nlp()
     matcher = nlp_mod.build_zone_matcher(nlp)
     text = "me duele la cabeza y me duele el estomago"
     doc = nlp(text)
     zones = nlp_mod.find_zone_spans(doc, matcher)
-    # cada síntoma cubre TODA su cláusula (incluye la palabra de zona)
     s_cef = _sym("CEFALEA", 0, _end=text.index(" y"))
     s_abd = _sym("DOLOR_ABDOMINAL", text.index("y ") + 2, _end=len(text))
 
     nlp_mod.link_zones([s_cef, s_abd], zones, doc)
 
-    assert [z["code"] for z in s_cef["zones"]] == ["CABEZA"]        # cabeza → cefalea (la contiene)
-    assert [z["code"] for z in s_abd["zones"]] == ["ABDOMEN"]       # estomago → dolor abdominal
+    assert [z["code"] for z in s_cef["zones"]] == ["CABEZA"]
+    assert [z["code"] for z in s_abd["zones"]] == ["ABDOMEN"]
 
-
-# --- Task 5: extract() integra zonas ---
 
 class _FakePipeline(nlp_mod.SymptomExtractionPipeline):
-    """Evita cargar ONNX: stubbea init, NER y normalización; usa spaCy blank real."""
     def __init__(self, ner_spans):
         self._fake_ner = ner_spans
         self._nlp = _blank_nlp()
@@ -227,7 +224,6 @@ class _FakePipeline(nlp_mod.SymptomExtractionPipeline):
         return self._fake_ner
 
     def _normalize(self, raw_text):
-        # mapa mínimo raw_text -> (code, sim) para el test
         m = {"me duele la cabeza": ("CEFALEA", 0.9)}
         return m.get(raw_text)
 
@@ -243,7 +239,6 @@ def test_extract_devuelve_symptoms_y_body_zones():
     assert out["symptoms"][0]["code"] == "CEFALEA"
     assert [z["code"] for z in out["symptoms"][0]["zones"]] == ["CABEZA"]
     assert [z["code"] for z in out["body_zones"]] == ["CABEZA"]
-    # el campo interno _start no se filtra al exterior
     assert "_start" not in out["symptoms"][0]
 
 
@@ -252,10 +247,7 @@ def test_extract_texto_vacio():
     assert pipe.extract("   ") == {"symptoms": [], "body_zones": []}
 
 
-# --- Task 6: contrato Pydantic de la API ---
-
 def test_response_model_acepta_zonas_y_body_zones():
-    import main as main_mod
     payload = {
         "symptoms": [{
             "code": "CEFALEA", "label": "Cefalea", "raw_text": "me duele la cabeza",
@@ -267,19 +259,16 @@ def test_response_model_acepta_zonas_y_body_zones():
                         "negated": False, "score": 1.0}],
         "model_version": "symptemist-onnx-int8",
     }
-    resp = main_mod.SymptomExtractionResponse(**payload)
+    resp = SymptomExtractionResponse(**payload)
     assert resp.symptoms[0].zones[0].code == "CABEZA"
     assert resp.body_zones[0].label == "Cabeza"
 
 
 def test_symptom_sin_zonas_default_lista_vacia():
-    import main as main_mod
-    s = main_mod.ExtractedSymptom(
+    s = ExtractedSymptom(
         code="MAREO", label="Mareo", raw_text="mareo", negated=False, score=0.7, alarm=False)
     assert s.zones == []
 
-
-# --- Fix problema 1: descartar spans que son puro stopword (el NER etiqueta "me" -> Edema) ---
 
 def test_is_content_span_descarta_stopwords():
     for w in ("me", "la", "el", "de", "y"):
@@ -289,7 +278,7 @@ def test_is_content_span_descarta_stopwords():
 def test_is_content_span_acepta_contenido():
     assert nlp_mod._is_content_span("cabeza") is True
     assert nlp_mod._is_content_span("dolor de cabeza") is True
-    assert nlp_mod._is_content_span("me duele") is True   # tiene al menos una palabra de contenido
+    assert nlp_mod._is_content_span("me duele") is True
 
 
 def test_is_content_span_texto_vacio_o_puntuacion():
@@ -297,25 +286,21 @@ def test_is_content_span_texto_vacio_o_puntuacion():
     assert nlp_mod._is_content_span("...") is False
 
 
-# --- Stopwords configurables (listas editables en nlp_catalog.py) ---
-
 def test_stopwords_extra_agrega_palabra():
-    # "chekeo" no es stopword de spaCy; al agregarla, un span que sea solo esa palabra se descarta
     assert nlp_mod._is_content_span("chekeo") is True
     nlp_catalog.EXTRA_STOPWORDS.add("chekeo")
     try:
         assert nlp_mod._is_content_span("chekeo") is False
     finally:
         nlp_catalog.EXTRA_STOPWORDS.discard("chekeo")
-    assert nlp_mod._is_content_span("chekeo") is True  # revertido
+    assert nlp_mod._is_content_span("chekeo") is True
 
 
 def test_stopwords_keep_protege_palabra():
-    # "algo" ES stopword de spaCy -> normalmente un span "algo" se descarta
     assert nlp_mod._is_content_span("algo") is False
     nlp_catalog.KEEP_WORDS.add("algo")
     try:
-        assert nlp_mod._is_content_span("algo") is True   # protegida, ya no cuenta como vacía
+        assert nlp_mod._is_content_span("algo") is True
     finally:
         nlp_catalog.KEEP_WORDS.discard("algo")
-    assert nlp_mod._is_content_span("algo") is False  # revertido
+    assert nlp_mod._is_content_span("algo") is False

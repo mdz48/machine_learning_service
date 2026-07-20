@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from database import Base, MLModel, SessionLocal, engine
+from app.core.database import Base, MLModel, SessionLocal, engine
 
 Base.metadata.create_all(bind=engine)
 
@@ -27,6 +27,7 @@ MODEL_DATA = {
         "author": "Maximiliano Diaz"
     }
 }
+
 
 def seed():
     db = SessionLocal()

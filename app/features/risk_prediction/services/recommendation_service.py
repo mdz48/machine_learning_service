@@ -1,14 +1,5 @@
-"""Recomendaciones clínicas para el perfil de Alto Riesgo Hipertensivo / Preeclampsia (cluster 1).
+"""Recomendaciones clínicas para el perfil de Alto Riesgo Hipertensivo / Preeclampsia (cluster 1)."""
 
-Basadas en la guía **SOMANZ** (prevención de preeclampsia, Parte 3A). Contenido estático,
-codificado tal cual la tabla provista (con su calificación GRADE). NO es una prescripción:
-son recomendaciones generales de guía para el perfil, para consideración del médico tratante.
-
-Las recomendaciones de aspirina dependen de la edad gestacional (ventana de inicio < sem 16;
-cese entre sem 34 y el parto), por eso `get_recommendations` recibe `gestational_week`.
-"""
-
-# Cluster al que aplican estas recomendaciones (Alto Riesgo Hipertensivo / Preeclampsia).
 _HYPERTENSIVE_CLUSTER = 1
 
 SOMANZ_SOURCE = "SOMANZ – Prevención de preeclampsia (Parte 3A)"
@@ -18,13 +9,11 @@ DISCLAIMER = (
     "una prescripción. La decisión final corresponde al médico tratante."
 )
 
-# Umbrales de la ventana gestacional para la aspirina (semanas).
-_ASPIRIN_START_MAX_WEEK = 16   # inicio óptimo: antes de la semana 16
-_ASPIRIN_CESSATION_WEEK = 34   # cese: entre la semana 34 y el parto
+_ASPIRIN_START_MAX_WEEK = 16
+_ASPIRIN_CESSATION_WEEK = 34
 
 
 def _aspirin_item(gestational_week: int) -> dict:
-    """Ítem de aspirina ajustado a la ventana gestacional (SOMANZ 3A.1.1–3A.1.4)."""
     if gestational_week < _ASPIRIN_START_MAX_WEEK:
         return {
             "intervencion": "Aspirina",
@@ -51,7 +40,6 @@ def _aspirin_item(gestational_week: int) -> dict:
 
 
 def _calcium_item() -> dict:
-    """Ítem de calcio (SOMANZ 3A.2.1–3A.2.2); no depende de la edad gestacional."""
     return {
         "intervencion": "Calcio oral",
         "recomendacion": "En mujeres con baja ingesta dietética de calcio (< 1 g/día), se recomienda suplementación de calcio.",
@@ -61,7 +49,6 @@ def _calcium_item() -> dict:
     }
 
 
-# Intervenciones no recomendadas por evidencia insuficiente (SOMANZ 3A.3, 3A.4).
 _NOT_RECOMMENDED = [
     {"intervencion": "Omega-3 (LCPUFA)", "grade": "2B", "nota": "No recomendado hasta contar con más datos."},
     {"intervencion": "Suplementación con ajo", "grade": "2D", "nota": "No recomendado hasta contar con más datos."},
@@ -69,11 +56,6 @@ _NOT_RECOMMENDED = [
 
 
 def get_recommendations(cluster: int, gestational_week: int):
-    """Recomendaciones SOMANZ para el perfil hipertensivo, o None si el cluster no aplica.
-
-    Solo el cluster 1 (Alto Riesgo Hipertensivo / Preeclampsia) tiene recomendaciones; para
-    los demás perfiles devuelve None (el campo se omite en la respuesta).
-    """
     if cluster != _HYPERTENSIVE_CLUSTER:
         return None
 
