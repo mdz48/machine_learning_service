@@ -1,24 +1,11 @@
-"""Capa de explicabilidad (XAI) para el clasificador de perfiles de riesgo prenatal.
-
-No reentrena ni modifica el modelo: se apoya en los artefactos exportados por el
-notebook (`cluster_stats.json`, `train_reference.csv`) y en el KNN ya entrenado.
-
-Cuatro explicaciones complementarias:
-  - afinidad:  % de las k pacientes mas similares en cada perfil (predict_proba).
-  - factores:  variables que DEFINEN el perfil y que la paciente exhibe.
-  - similares: pacientes historicas mas parecidas (vecinas del KNN).
-  - narrativa: explicacion en lenguaje natural para el ginecologo.
-"""
+"""Capa de explicabilidad (XAI) para el clasificador de perfiles de riesgo prenatal."""
 import json
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
+from app.core.config import MODELS_DIR, os
 
-_DIR = Path(__file__).parent / "models"
-
-# --- Carga de artefactos (una sola vez, al importar) ---
-with open(_DIR / "cluster_stats.json", encoding="utf-8") as _f:
+# Carga de artefactos
+with open(os.path.join(MODELS_DIR, "cluster_stats.json"), encoding="utf-8") as _f:
     _STATS = json.load(_f)
 
 CLUSTER_MAP = {int(k): v for k, v in _STATS["cluster_map"].items()}
@@ -26,15 +13,11 @@ _NUMERIC = _STATS["numeric_features"]
 _GLOBAL = _STATS["global"]
 _CLUSTERS = {int(k): v for k, v in _STATS["clusters"].items()}
 
-_REF = pd.read_csv(_DIR / "train_reference.csv")
+_REF = pd.read_csv(os.path.join(MODELS_DIR, "train_reference.csv"))
 
-# Umbral: si la afinidad maxima cae por debajo, se marca como caso limitrofe.
 AFFINITY_THRESHOLD = 70.0
-
-# Solo las variables numericas se usan para "factores"; requieren distintividad minima.
 _DISTINCTIVENESS_MIN = 0.3
 
-# Etiquetas legibles para el ginecologo.
 _LABELS = {
     "age_years": "Edad materna",
     "bmi_initial": "Índice de masa corporal (IMC)",
@@ -62,7 +45,6 @@ _LABELS = {
     "nulliparous": "Nuliparidad",
 }
 
-# Columnas que se muestran de cada paciente similar.
 _SIMILAR_COLS = ["age_years", "systolic", "diastolic", "bmi_initial", "perfil"]
 
 
@@ -71,7 +53,6 @@ def _label(var: str) -> str:
 
 
 def affinity(knn, X_pca):
-    """% de pertenencia a cada perfil segun las k vecinas. Devuelve (dict, es_limitrofe)."""
     proba = knn.predict_proba(X_pca)[0]
     result = {CLUSTER_MAP[int(c)]: round(float(p) * 100, 1)
               for c, p in zip(knn.classes_, proba)}
@@ -80,12 +61,6 @@ def affinity(knn, X_pca):
 
 
 def top_factors(patient: dict, cluster: int, k: int = 5):
-    """Variables que definen el perfil asignado Y que la paciente exhibe.
-
-    score = distintividad_del_perfil * cuanto_lo_tiene_la_paciente
-    (ambas en z-score respecto a la poblacion). Se descartan las variables donde
-    la paciente va en direccion contraria al perfil o el perfil no es distintivo.
-    """
     factors = []
     for v in _NUMERIC:
         if v not in patient:
@@ -94,8 +69,8 @@ def top_factors(patient: dict, cluster: int, k: int = 5):
         gs = _GLOBAL[v]["std"] or 1.0
         cm = _CLUSTERS[cluster][v]["mean"]
 
-        distintividad = (cm - gm) / gs          # cuanto define este rasgo al perfil (con signo)
-        paciente_z = (patient[v] - gm) / gs      # la paciente sobre ese eje
+        distintividad = (cm - gm) / gs
+        paciente_z = (patient[v] - gm) / gs
         if abs(distintividad) < _DISTINCTIVENESS_MIN:
             continue
         if np.sign(distintividad) != np.sign(paciente_z):
@@ -114,12 +89,10 @@ def top_factors(patient: dict, cluster: int, k: int = 5):
 
 
 def _clean_num(value):
-    """NaN -> None (el dataset tiene faltantes inyectados; NaN no es JSON valido)."""
     return None if pd.isna(value) else round(float(value), 1)
 
 
 def similar_patients(knn, X_pca, n: int = 3):
-    """Pacientes historicas mas parecidas (vecinas del KNN, en su espacio PCA)."""
     n = min(n, knn.n_neighbors)
     _, idx = knn.kneighbors(X_pca, n_neighbors=n)
     out = []
@@ -133,7 +106,6 @@ def similar_patients(knn, X_pca, n: int = 3):
 
 
 def narrative(cluster: int, factors: list) -> str:
-    """Explicacion en lenguaje natural, armada con los factores determinantes."""
     perfil = CLUSTER_MAP[cluster]
     if not factors:
         return f"La paciente fue asignada al perfil «{perfil}»."
@@ -146,7 +118,6 @@ def narrative(cluster: int, factors: list) -> str:
 
 
 def explain(knn, X_pca, patient: dict, cluster: int) -> dict:
-    """Ensambla las cuatro explicaciones en un solo bloque para el JSON de /predict."""
     afin, limitrofe = affinity(knn, X_pca)
     factors = top_factors(patient, cluster)
     return {

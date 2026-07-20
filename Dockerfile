@@ -23,5 +23,5 @@ COPY . .
 # Exponer el puerto
 EXPOSE 8001
 
-# Comando para iniciar el servicio (usamos el puerto 8001 para diferenciarlo internamente si hace falta, aunque Docker Compose mapea)
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
+# Comando para iniciar el servicio (apunta a app.main:app)
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001"]

@@ -1,25 +1,4 @@
-"""Pipeline NLP para extraccion de sintomas de texto libre (RF-29/30/31).
-
-Tres etapas, todas ejecutadas sobre CPU con modelos ONNX cuantizados (int8) para
-caber en el presupuesto de RAM del servidor compartido (~600-800 MB, sin PyTorch
-en memoria):
-
-  1. NER clinico  -> transformer fine-tuned en corpus de sintomas en espanol,
-                     exportado a ONNX. Detecta los spans que mencionan sintomas.
-  2. Negacion     -> spaCy (segmentacion + tokens) con reglas estilo NegEx en
-                     espanol. Distingue "tuve dolor de cabeza" de "no tuve dolor".
-  3. Normalizacion-> embeddings (MiniLM multilingue en ONNX). Cada span se mapea
-                     al concepto del catalogo con mayor similitud coseno. No es un
-                     diccionario: tolera sinonimos y variantes no listadas.
-
-El runtime solo necesita onnxruntime + transformers(tokenizer) + spacy + numpy.
-Los artefactos .onnx se generan una sola vez con scripts/export_nlp_models.py.
-
-Carga perezosa: los modelos se cargan en el primer uso y se reutilizan como
-singleton. Si los artefactos no existen, get_pipeline() lanza RuntimeError y el
-endpoint responde 503 (la escritura de la bitacora en el backend nunca se bloquea).
-"""
-
+"""Pipeline NLP para extraccion de sintomas con ONNX cuantizados (int8)."""
 import json
 import os
 import re
@@ -28,8 +7,14 @@ from typing import List, Optional
 
 import numpy as np
 
-from nlp_catalog import (CATALOG, CATALOG_BY_CODE, BODY_ZONE_CATALOG,
-                         BODY_ZONE_BY_CODE, EXTRA_STOPWORDS, KEEP_WORDS)
+from app.features.nlp_symptom_extraction.domain.nlp_catalog import (
+    CATALOG,
+    CATALOG_BY_CODE,
+    BODY_ZONE_CATALOG,
+    BODY_ZONE_BY_CODE,
+    EXTRA_STOPWORDS,
+    KEEP_WORDS,
+)
 
 _MODELS_DIR = os.getenv("NLP_MODELS_DIR", "models/nlp")
 _NER_DIR = os.path.join(_MODELS_DIR, "ner")
@@ -39,8 +24,6 @@ _SIM_THRESHOLD = float(os.getenv("NLP_SIM_THRESHOLD", "0.55"))
 _NER_SCORE_MIN = float(os.getenv("NLP_NER_SCORE_MIN", "0.50"))
 _NUM_THREADS = int(os.getenv("NLP_NUM_THREADS", "2"))
 
-# Cues de negacion pre-puestas (NegEx en espanol). El scope se corta en signos de
-# puntuacion y en conjunciones adversativas.
 _NEG_CUES = {
     "no", "sin", "ni", "ningun", "ninguna", "ningunos", "ningunas",
     "nunca", "jamas", "tampoco", "niega", "negativo", "negativa", "ausencia", "descarta",
@@ -58,12 +41,6 @@ _ES_STOP_BASE = None
 
 
 def _stopwords() -> set:
-    """Conjunto efectivo = (stopwords de spaCy es | EXTRA_STOPWORDS) - KEEP_WORDS.
-
-    La base de spaCy se cachea (import perezoso, para no cargar spaCy al importar el modulo);
-    EXTRA/KEEP se aplican en cada llamada para que editar esas listas en nlp_catalog.py surta
-    efecto sin reiniciar.
-    """
     global _ES_STOP_BASE
     if _ES_STOP_BASE is None:
         from spacy.lang.es.stop_words import STOP_WORDS
@@ -72,20 +49,11 @@ def _stopwords() -> set:
 
 
 def _is_content_span(text: str) -> bool:
-    """False si el span del NER es puro stopword/puntuacion.
-
-    El NER a veces etiqueta pronombres sueltos como 'me' (que la normalizacion mapea
-    debilmente a 'Edema'). Un sintoma real nunca es solo palabras vacias, asi que esos
-    spans se descartan. Las stopwords son configurables (ver nlp_catalog.py).
-    """
     stops = _stopwords()
     toks = re.findall(r"\w+", text.lower())
     return bool(toks) and not all(t in stops for t in toks)
 
 
-# Verbos de capacidad. Una cue seguida de uno de estos NO niega el sintoma: lo EXPRESA.
-# "no puedo respirar" ES la disnea (signo de alarma), no su negacion. El NER corta el span
-# en "respirar" y deja el "no puedo" fuera, por eso hay que mirar que sigue a la cue.
 _ABILITY_VERBS = {
     "puedo", "puede", "podia", "podía", "pude", "puedes",
     "logro", "logra", "consigo", "consigue",
@@ -93,53 +61,40 @@ _ABILITY_VERBS = {
 
 
 def _is_negated(doc, span_start: int) -> bool:
-    """True si hay una cue de negacion no cancelada antes del span, en su misma frase.
-
-    Excepcion: si la cue va seguida de un verbo de capacidad ("no puedo respirar"), la
-    negacion forma parte del propio sintoma y NO se marca como negado.
-    """
     for sent in doc.sents:
         if sent.start_char <= span_start < sent.end_char:
-            toks = [t for t in sent if t.idx < span_start]  # solo lo previo al span
+            toks = [t for t in sent if t.idx < span_start]
             negated = False
             for i, tok in enumerate(toks):
                 low = tok.text.lower()
                 if low in _NEG_TERMINATORS or tok.is_punct:
-                    negated = False  # reinicia scope
+                    negated = False
                 elif low in _NEG_CUES:
                     nxt = toks[i + 1].text.lower() if i + 1 < len(toks) else ""
                     if nxt in _ABILITY_VERBS:
-                        continue  # "no puedo X": la negacion ES el sintoma
+                        continue
                     negated = True
             return negated
     return False
 
 
-_ZONE_SCORE = 1.0  # coincidencia por gazetteer: no hay probabilidad
+_ZONE_SCORE = 1.0
 
 
 def _fuzzy_attr(token_text: str):
-    """Predicado de atributo LOWER con tolerancia por longitud.
-
-    Palabras cortas (< 5) van exactas para no generar falsos positivos ("cara"/"casa").
-    5-7 letras toleran 1 edicion; >= 8 toleran 2. Cubre typos por distancia de edicion
-    (incluye tildes faltantes: "estomago"/"estomago" son distancia 1).
-    """
     n = len(token_text)
     if n >= 8:
         return {"FUZZY2": token_text}
     if n >= 5:
         return {"FUZZY1": token_text}
-    return token_text  # exacto
+    return token_text
 
 
 def _zone_token_patterns(anchor: str) -> List[dict]:
-    """Convierte una frase-ancla en un patron de tokens para el Matcher."""
     return [{"LOWER": _fuzzy_attr(tok)} for tok in anchor.lower().split()]
 
 
 def build_zone_matcher(nlp):
-    """Matcher difuso: un codigo de zona por conjunto de patrones-ancla."""
     from spacy.matcher import Matcher
 
     matcher = Matcher(nlp.vocab)
@@ -150,10 +105,9 @@ def build_zone_matcher(nlp):
 
 
 def find_zone_spans(doc, matcher) -> List[dict]:
-    """Detecta zonas en el doc; resuelve solapes (gana el span mas largo)."""
     from spacy.util import filter_spans
 
-    by_span = {}  # (start_tok, end_tok) -> code, para recuperar tras filter_spans
+    by_span = {}
     spans = []
     for match_id, start_tok, end_tok in matcher(doc):
         code = doc.vocab.strings[match_id]
@@ -190,23 +144,14 @@ def _sentence_bounds(doc, char_pos: int):
 
 
 def _span_gap(a0: int, a1: int, b0: int, b1: int) -> int:
-    """Distancia entre dos intervalos [a0,a1) y [b0,b1). 0 si se solapan o uno contiene al otro."""
     if a1 <= b0:
         return b0 - a1
     if b1 <= a0:
         return a0 - b1
-    return 0  # solapamiento / contencion
+    return 0
 
 
 def link_zones(symptoms: List[dict], zone_spans: List[dict], doc) -> List[dict]:
-    """Adjunta cada zona al sintoma de su misma frase por contencion/cercania y arma body_zones.
-
-    La cercania se mide borde-a-borde (no por inicio del span): si el span del sintoma
-    contiene a la zona, la distancia es 0 y gana. Asi "me duele la cabeza y me duele el
-    estomago" (una frase corrida, spans largos) no pega la 'cabeza' al dolor equivocado.
-
-    Muta cada sintoma anadiendole la clave "zones". Devuelve body_zones deduplicada por code.
-    """
     for s in symptoms:
         s.setdefault("zones", [])
 
@@ -215,7 +160,6 @@ def link_zones(symptoms: List[dict], zone_spans: List[dict], doc) -> List[dict]:
         if bounds is None:
             continue
         s0, s1 = bounds
-        # sintomas cuyo inicio cae en la misma frase que la zona
         candidatos = [s for s in symptoms if s0 <= s.get("_start", -1) < s1]
         if candidatos:
             nearest = min(
@@ -237,14 +181,13 @@ def link_zones(symptoms: List[dict], zone_spans: List[dict], doc) -> List[dict]:
 
 class SymptomExtractionPipeline:
     def __init__(self) -> None:
-        import onnxruntime as ort  # import perezoso: solo si se usa NLP
+        import onnxruntime as ort
         from transformers import AutoTokenizer
 
         so = ort.SessionOptions()
         so.intra_op_num_threads = _NUM_THREADS
         so.inter_op_num_threads = 1
 
-        # --- Etapa 1: NER ---
         ner_onnx = self._find_onnx(_NER_DIR)
         self._ner_sess = ort.InferenceSession(ner_onnx, sess_options=so, providers=["CPUExecutionProvider"])
         self._ner_tok = AutoTokenizer.from_pretrained(_NER_DIR)
@@ -253,26 +196,20 @@ class SymptomExtractionPipeline:
             cfg = json.load(f)
         self._id2label = {int(k): v for k, v in cfg["id2label"].items()}
 
-        # --- Etapa 3: embeddings ---
         embed_onnx = self._find_onnx(_EMBED_DIR)
         self._emb_sess = ort.InferenceSession(embed_onnx, sess_options=so, providers=["CPUExecutionProvider"])
         self._emb_tok = AutoTokenizer.from_pretrained(_EMBED_DIR)
         self._emb_inputs = {i.name for i in self._emb_sess.get_inputs()}
 
-        # Anclas del catalogo precomputadas una sola vez. Guardamos el codigo de
-        # concepto por cada frase ancla y tomamos el maximo coseno (mejor recall).
         anchor_texts, self._anchor_codes = [], []
         for concept in CATALOG:
             for phrase in concept.anchors:
                 anchor_texts.append(phrase)
                 self._anchor_codes.append(concept.code)
-        self._anchor_emb = self._embed(anchor_texts)  # [n_anchors, dim], normalizado
+        self._anchor_emb = self._embed(anchor_texts)
 
-        # --- Etapa 2: negacion ---
         import spacy
         self._nlp = spacy.load(_SPACY_MODEL, disable=["ner", "lemmatizer"])
-
-        # --- Zonas del cuerpo (gazetteer difuso, sin modelo nuevo) ---
         self._zone_matcher = build_zone_matcher(self._nlp)
 
     @staticmethod
@@ -282,7 +219,6 @@ class SymptomExtractionPipeline:
                 f"No existe el directorio de modelo NLP '{dir_path}'. "
                 "Corre scripts/export_nlp_models.py una vez para generarlo."
             )
-        # Prioriza la version cuantizada int8 si esta presente.
         for name in ("model_quantized.onnx", "model.onnx"):
             p = os.path.join(dir_path, name)
             if os.path.isfile(p):
@@ -302,27 +238,26 @@ class SymptomExtractionPipeline:
 
     def _embed(self, texts: List[str]) -> np.ndarray:
         enc = self._emb_tok(texts, padding=True, truncation=True, max_length=64, return_tensors="np")
-        out = self._emb_sess.run(None, self._feed(enc, self._emb_inputs))[0]  # [n, seq, dim]
+        out = self._emb_sess.run(None, self._feed(enc, self._emb_inputs))[0]
         mask = enc["attention_mask"].astype(np.float32)[..., None]
         summed = np.sum(out * mask, axis=1)
         counts = np.clip(mask.sum(axis=1), 1e-9, None)
-        vec = summed / counts  # mean pooling
+        vec = summed / counts
         norm = np.linalg.norm(vec, axis=1, keepdims=True)
         return vec / np.clip(norm, 1e-9, None)
 
     def _ner_spans(self, text: str) -> List[dict]:
-        """Decodifica logits ONNX -> spans de caracteres (agregacion 'simple' BIO)."""
         enc = self._ner_tok(text, return_offsets_mapping=True, truncation=True,
                             max_length=256, return_tensors="np")
         offsets = enc.pop("offset_mapping")[0]
-        logits = self._ner_sess.run(None, self._feed(enc, self._ner_inputs))[0][0]  # [seq, labels]
+        logits = self._ner_sess.run(None, self._feed(enc, self._ner_inputs))[0][0]
         probs = _softmax(logits, axis=-1)
         label_ids = probs.argmax(axis=-1)
         scores = probs.max(axis=-1)
 
         spans, cur = [], None
         for idx, (start, end) in enumerate(offsets):
-            if start == end:  # token especial ([CLS]/[SEP]/pad)
+            if start == end:
                 continue
             label = self._id2label.get(int(label_ids[idx]), "O")
             if label == "O":
@@ -347,15 +282,14 @@ class SymptomExtractionPipeline:
             if avg < _NER_SCORE_MIN:
                 continue
             raw = text[s["start"]:s["end"]]
-            if not _is_content_span(raw):  # descarta 'me', 'la', etc. mal etiquetados
+            if not _is_content_span(raw):
                 continue
             out.append({"start": s["start"], "end": s["end"], "raw_text": raw, "score": avg})
         return out
 
     def _normalize(self, raw_text: str) -> Optional[tuple]:
-        """Mapea un span al concepto del catalogo por similitud coseno."""
         vec = self._embed([raw_text])[0]
-        sims = self._anchor_emb @ vec  # coseno (todo normalizado)
+        sims = self._anchor_emb @ vec
         best = int(sims.argmax())
         if float(sims[best]) < _SIM_THRESHOLD:
             return None
@@ -373,7 +307,7 @@ class SymptomExtractionPipeline:
             if not mapped:
                 continue
             code, sim = mapped
-            if code in seen:  # dedup por concepto dentro de una misma entrada
+            if code in seen:
                 continue
             seen.add(code)
             concept = CATALOG_BY_CODE[code]
@@ -384,15 +318,15 @@ class SymptomExtractionPipeline:
                 "negated": _is_negated(doc, span["start"]),
                 "score": round(min(span["score"], sim), 4),
                 "alarm": concept.alarm,
-                "_start": span["start"],  # interno: para vincular zonas
-                "_end": span["end"],      # interno: para vincular por contencion
+                "_start": span["start"],
+                "_end": span["end"],
             })
 
         zone_spans = find_zone_spans(doc, self._zone_matcher)
         body_zones = link_zones(results, zone_spans, doc)
 
         for s in results:
-            s.pop("_start", None)  # no exponer los offsets internos
+            s.pop("_start", None)
             s.pop("_end", None)
             s.setdefault("zones", [])
 

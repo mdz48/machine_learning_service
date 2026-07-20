@@ -1,38 +1,14 @@
-"""Extraccion de sintomas con LLM local (Ollama) - alternativa experimental al pipeline NER.
-
-Version v3 (2026-07-17): prompt rico + reglas anti-alucinacion + ANCLAJE DIFUSO + validacion Pydantic.
-Version v3.1 (2026-07-17): ANCLAJE ASIMETRICO - alarmas nunca descartadas por grounded().
-Version v3.2 (2026-07-17): fix multi-negacion (Regla 2 + ejemplo) y alucinacion-OTRO (catalogo ampliado).
-Version v3.3 (2026-07-17): OTRO bypasa grounded() (como alarmas); EDEMA y DOLOR_ABDOMINAL ampliados;
-    Regla 4 extendida ('no veo bien' no es negacion); ejemplos anti-trampa adicionales.
-Version v3.4 (2026-07-17): DEBILIDAD excluye escalofrios; Regla 5 cubre 'sin novedad'; ejemplo anti-trampa.
-Version v3.4.1 (2026-07-17): Regla 4 extendida con 'no patea' y principio general ausencia=sintoma.
-Version v3.4.2 (2026-07-17): CONTRACCIONES anade 'estomago duro/piedra', DOLOR_ABDOMINAL excluye dolor general, NAUSEA_VOMITO anade 'vomite'.
-NO requiere entrenamiento: todo es contexto (prompt + few-shot + JSON schema).
-
-Resultados medidos:
-    Set de optimizacion (45 bitacoras): alarmas 24/24 | alucinaciones 4 | exactas 39/45 (87%).
-    Set held-out 1 (26 bitacoras, v3):  alarmas 12/13 | alucinaciones 5 | exactas 17/26 (65.4%).
-    Set held-out 2 (25 bitacoras, v3.2+v3.1): alarmas 7/9 | alucinaciones 2 | exactas 19/25 (76.0%).
-    El fallo peligroso en held-out: grounded() descarto EDEMA y DISURIA validos por parafraseo
-    del modelo -> resuelto en v3.1 con anclaje asimetrico.
-    (vs pipeline NER curado: alarmas 15/24, alucinaciones 15, exactas 23/45.)
-
-Config por variables de entorno:
-    OLLAMA_URL   (default http://localhost:11434 ; en Docker: http://ollama:11434)
-    OLLAMA_MODEL (default qwen2.5:3b)
-    LLM_TIMEOUT  (segundos, default 60 ; latencia real en VPS 4-cores: mediana ~12s)
-"""
+"""Extraccion de sintomas con LLM local (Ollama) via Qwen 2.5."""
 import json
 import os
 import re
 import urllib.request
 from typing import Optional
-
 from pydantic import BaseModel, ValidationError
 
+from app.core.config import OLLAMA_MODEL
+
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
 _TIMEOUT = float(os.getenv("LLM_TIMEOUT", "60"))
 
 ALLOWED = [
@@ -42,8 +18,6 @@ ALLOWED = [
 ]
 _ALLOWED_SET = set(ALLOWED)
 
-# Signos de alarma obstetrica: perder uno es mas peligroso que un falso positivo.
-# Nunca se descartan por anclaje (ver _grounded y extract).
 _ALARM_SET = {
     "CEFALEA", "VISION_BORROSA", "EDEMA", "DOLOR_EPIGASTRICO", "SANGRADO",
     "DISMINUCION_MOVIMIENTO_FETAL", "CONTRACCIONES", "DIFICULTAD_RESPIRATORIA",
@@ -66,7 +40,6 @@ _SCHEMA = {
     "required": ["symptoms"],
 }
 
-# Prompt v3.4: DEBILIDAD excluye escalofrios; Regla 5 cubre 'sin novedad'; ejemplo anti-trampa.
 _SYSTEM = """Eres un extractor clinico obstetrico. Tu UNICA fuente es el mensaje de la paciente.
 Extrae los SINTOMAS que la paciente dice tener AHORA.
 
@@ -149,12 +122,6 @@ def _content_words(s: str):
 
 
 def _grounded(raw: str, text: str) -> bool:
-    """Anclaje DIFUSO para sintomas NO-alarma: raw_text debe estar (o casi) en el texto.
-
-    Mata las alucinaciones por 'fuga de prompt' (el 3B copia sus instrucciones como
-    sintomas), pero tolera typos del propio modelo en raw_text (substring exacto fallaria).
-    No se llama para codigos en _ALARM_SET (ver extract): el anclaje es ASIMETRICO.
-    """
     r = " ".join((raw or "").lower().split())
     tl = " ".join(text.lower().split())
     if not r:
@@ -186,16 +153,6 @@ def _call_ollama(text: str) -> str:
 
 
 def extract(text: str, use_fallback: bool = False) -> dict:
-    """Extrae sintomas con el LLM. Devuelve {"symptoms":[...], "source": "llm"|"fallback"|"empty"}.
-
-    Cada sintoma: code, raw_text, negated, intensity, duration, body_zone.
-    Anclaje ASIMETRICO (v3.1 + v3.3):
-      - Signos de ALARMA (_ALARM_SET): nunca se descartan. Un falso positivo lo descarta el medico.
-      - OTRO: nunca se descarta. El modelo suele identificar bien el codigo pero parafrasea raw_text;
-        un OTRO falso llega al medico como sugerencia no-peligrosa.
-      - Resto de codigos: anclaje difuso (>=60% palabras en el texto) filtra alucinaciones de fuga.
-    Con use_fallback=True, si el LLM falla usa el pipeline curado (nlp.py) como respaldo.
-    """
     text = (text or "").strip()
     if not text:
         return {"symptoms": [], "source": "empty"}
@@ -215,6 +172,6 @@ def extract(text: str, use_fallback: bool = False) -> dict:
 
     except Exception:
         if use_fallback:
-            import nlp
-            return {"symptoms": nlp.get_pipeline().extract(text)["symptoms"], "source": "fallback"}
+            from app.features.nlp_symptom_extraction.services.onnx_extractor_service import get_pipeline
+            return {"symptoms": get_pipeline().extract(text)["symptoms"], "source": "fallback"}
         raise

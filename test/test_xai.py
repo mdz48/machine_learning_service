@@ -10,7 +10,7 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import explainability
+import app.features.risk_prediction.services.explainability_service as explainability
 
 _pre = joblib.load("models/preprocessor.pkl")
 _pca = joblib.load("models/pca.pkl")
@@ -49,7 +49,6 @@ def test_afinidad_suma_100():
 
 
 def test_factores_son_clinicamente_correctos():
-    # Los factores deben apuntar a hipertension/presion, no a variables atipicas
     _, xai = _explain(PACIENTE_HIPERTENSA)
     top = {f["variable"] for f in xai["factores_determinantes"][:3]}
     assert top & {"chronic_hypertension", "systolic", "diastolic",
@@ -63,8 +62,6 @@ def test_vecinas_devuelve_tres():
 
 
 def test_salida_sin_nan_serializa_json_estricto():
-    # Regresion: el dataset tiene faltantes; una vecina con NaN rompia el INSERT JSONB.
-    # json.dumps(allow_nan=False) lanza ValueError si queda algun NaN en la salida.
     _, xai = _explain(PACIENTE_HIPERTENSA)
     json.dumps(xai, allow_nan=False)
     for sp in xai["pacientes_similares"]:
