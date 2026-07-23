@@ -139,7 +139,7 @@ def _call_ollama(text: str) -> str:
         "model": OLLAMA_MODEL,
         "format": _SCHEMA,
         "stream": False,
-        "options": {"temperature": 0},
+        "options": {"temperature": 0, "num_ctx": 1536, "num_predict": 300},
         "messages": [
             {"role": "system", "content": _SYSTEM},
             {"role": "user", "content": text},
